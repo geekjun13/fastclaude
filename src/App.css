@@ -1,0 +1,75 @@
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-height: 0;
+}
+.app-main { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+
+/* Tab bar — glass, elevation 2, floating clear of the content layer. */
+.tabbar {
+  --glass-pos: fixed;
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: max(var(--s-4), env(safe-area-inset-bottom));
+  z-index: 40;
+  display: flex;
+  gap: 2px;
+  padding: var(--s-1);
+  width: min(430px, calc(100% - var(--s-8)));
+}
+.tabbar button {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  padding: 7px 4px 5px;
+  border-radius: var(--r-4);
+  color: var(--label-3);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: var(--tr-normal);
+  transition: color var(--d-base) var(--ease-out), background var(--d-base) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+.tabbar button:hover { color: var(--label-2); }
+.tabbar button[aria-current='page'] {
+  color: var(--label);
+  background: var(--vib-fill-strong);
+}
+.tabbar button[aria-current='page'] svg { transform: scale(1.04); }
+
+.screen { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.screen-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s-3) var(--s-4) calc(var(--s-12) + 60px);
+  display: grid;
+  gap: var(--s-4);
+  align-content: start;
+}
+@media (min-width: 900px) {
+  .screen-scroll { padding-inline: max(var(--s-6), calc((100% - 860px) / 2)); }
+}
+
+.screen-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  padding: var(--s-5) var(--s-1) 0;
+}
+.screen-head h1 {
+  font-family: var(--font-display);
+  font-size: var(--t-large);
+  font-weight: 720;
+  letter-spacing: var(--tr-tight);
+}
+.screen-head p { color: var(--label-3); font-size: var(--t-footnote); }
+
+.row { display: flex; align-items: center; gap: var(--s-2); }
+.row-wrap { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+.spread { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); }
+.stack { display: grid; gap: var(--s-3); }
+.stack-tight { display: grid; gap: var(--s-2); }

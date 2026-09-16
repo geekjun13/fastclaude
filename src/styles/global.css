@@ -1,0 +1,74 @@
+@import './tokens.css';
+@import './glass.css';
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--t-body);
+  line-height: 1.45;
+  letter-spacing: var(--tr-normal);
+  color: var(--label);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* Korean has no inter-word spaces to break on, so the default break-word
+     splits mid-word ("오전 10시" -> "10" / "시"). keep-all holds words
+     together; anywhere still rescues long URLs. */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  overscroll-behavior: none;
+}
+
+/* The canvas the glass refracts. Soft, slowly drifting colour fields —
+   glass needs something with structure behind it or it reads as grey plastic. */
+.canvas-field {
+  position: fixed;
+  inset: -20%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(52% 44% at 18% 12%, var(--canvas-tint-a) 0%, transparent 62%),
+    radial-gradient(48% 46% at 86% 20%, var(--canvas-tint-b) 0%, transparent 64%),
+    radial-gradient(60% 52% at 50% 96%, var(--canvas-tint-c) 0%, transparent 66%),
+    var(--bg);
+  filter: saturate(112%);
+  animation: canvas-drift 44s var(--ease-inout) infinite alternate;
+}
+@keyframes canvas-drift {
+  from { transform: translate3d(-1.5%, -1%, 0) scale(1.02); }
+  to   { transform: translate3d(2%, 1.5%, 0) scale(1.06); }
+}
+@media (prefers-reduced-motion: reduce) { .canvas-field { animation: none; } }
+
+button, input, textarea, select {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+button { background: none; border: 0; padding: 0; cursor: pointer; }
+a { color: var(--a-blue); text-decoration: none; }
+
+h1, h2, h3, h4, p, figure { margin: 0; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+
+:focus-visible { outline: 2px solid var(--a-blue); outline-offset: 2px; border-radius: var(--r-1); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: var(--label-4);
+  border-radius: var(--r-capsule);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track { background: transparent; }
+
+.tnum { font-variant-numeric: tabular-nums; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.scroll-y { overflow-y: auto; -webkit-overflow-scrolling: touch; scrollbar-gutter: stable; }

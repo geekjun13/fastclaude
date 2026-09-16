@@ -1,0 +1,188 @@
+/* Eidos Liquid Glass material.
+   Three capability tiers, selected at runtime by <html data-glass="full|standard|flat">.
+   All tiers share tokens, shadows and geometry so the design reads the same everywhere. */
+
+.glass {
+  /* Consumers that need to float (tab bar, FAB, sticky toolbars) set
+     --glass-pos. Going through a custom property rather than letting a later
+     rule win means positioning never depends on stylesheet import order. */
+  position: var(--glass-pos, relative);
+  isolation: isolate;
+  border-radius: var(--r, var(--r-outer));
+  background: var(--glass-fill);
+  box-shadow: var(--sh-1);
+  color: var(--label);
+  transition:
+    background var(--d-base) var(--ease-out),
+    box-shadow var(--d-base) var(--ease-out),
+    transform var(--d-base) var(--ease-gel);
+  transform: translateZ(0);
+}
+
+/* ---- Tier 2: standard. backdrop-filter blur + saturate. The baseline. ---- */
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .glass {
+    background: var(--glass-fill);
+    -webkit-backdrop-filter: blur(var(--blur, var(--e1-blur)))
+      saturate(var(--glass-sat)) brightness(var(--glass-bright));
+    backdrop-filter: blur(var(--blur, var(--e1-blur)))
+      saturate(var(--glass-sat)) brightness(var(--glass-bright));
+  }
+}
+
+/* ---- Tier 3 fallback: no backdrop-filter. Opaque at matching luminance. ---- */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    background: color-mix(in srgb, var(--bg-elev) 94%, transparent);
+  }
+}
+
+/* ---- The rim: specular bevel. Two inset shadows read as a lit top edge
+       and a shaded bottom edge — the cheap half of "lensing". ---- */
+.glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 2;
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-rim),
+    inset 0 -1px 0 0 var(--glass-rim-low),
+    inset 1px 0 0 0 var(--glass-rim-low),
+    inset -1px 0 0 0 var(--glass-rim-low),
+    inset 0 0 0 0.5px var(--glass-edge);
+}
+
+/* ---- The specular sweep: a light source at -45deg, per Apple's fixed-light model.
+       Screen-blended so it only ever adds brightness. ---- */
+.glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  /* Below the content, above the surface's own background. `isolation: isolate`
+     on .glass keeps this negative layer inside the surface. Without it the
+     clear variant's dimming layer paints over its own text. */
+  z-index: -1;
+  opacity: var(--spec, 1);
+  background:
+    linear-gradient(
+      135deg,
+      var(--glass-spec) 0%,
+      transparent 22%,
+      transparent 78%,
+      color-mix(in srgb, var(--glass-spec) 45%, transparent) 100%
+    );
+  mix-blend-mode: soft-light;
+}
+
+/* ---- Tier 1: full. Real refraction via SVG displacement in backdrop-filter.
+       Chromium only; the filter id is injected by <GlassFilters />. ---- */
+[data-glass='full'] .glass[data-refract='on'] {
+  -webkit-backdrop-filter: url(#eidos-lens) blur(var(--blur, var(--e1-blur)))
+    saturate(var(--glass-sat)) brightness(var(--glass-bright));
+  backdrop-filter: url(#eidos-lens) blur(var(--blur, var(--e1-blur)))
+    saturate(var(--glass-sat)) brightness(var(--glass-bright));
+}
+
+/* ---- Elevations ---- */
+.glass[data-elev='1'] { --blur: var(--e1-blur); box-shadow: var(--sh-1); }
+.glass[data-elev='2'] { --blur: var(--e2-blur); box-shadow: var(--sh-2); }
+.glass[data-elev='3'] { --blur: var(--e3-blur); box-shadow: var(--sh-3); }
+
+/* ---- Clear variant. Used exactly once (the brief hero), and only with its
+       mandatory dimming layer, which is the ::before below. ---- */
+.glass[data-variant='clear'] {
+  background: var(--glass-fill-clear);
+}
+.glass[data-variant='clear']::before {
+  /* dimming layer first, specular on top of it */
+  background:
+    linear-gradient(
+      135deg,
+      var(--glass-spec) 0%,
+      transparent 20%,
+      transparent 80%,
+      color-mix(in srgb, var(--glass-spec) 40%, transparent) 100%
+    ),
+    linear-gradient(180deg, rgba(6, 9, 16, 0.26), rgba(6, 9, 16, 0.42));
+  mix-blend-mode: normal;
+}
+
+/* ---- Tint. One per view, primary action only. Brightness-mapped, not flat. ---- */
+.glass[data-tint] {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--tint) 78%, transparent),
+      color-mix(in srgb, var(--tint) 92%, transparent)
+    ),
+    var(--glass-floor);
+  color: var(--on-tint);
+  --glass-rim: rgba(255, 255, 255, 0.55);
+  --glass-rim-low: rgba(255, 255, 255, 0.16);
+}
+
+/* ---- Vibrancy fill. What a glass surface degrades to when nesting would
+       create glass-on-glass. Reads as a thin overlay, never as a second pane. ---- */
+.vibrancy {
+  position: relative;
+  border-radius: var(--r, var(--r-3));
+  background: var(--vib-fill);
+  box-shadow: inset 0 0 0 0.5px var(--sep);
+  color: var(--label);
+}
+.vibrancy[data-strong='true'] { background: var(--vib-fill-strong); }
+.vibrancy[data-sunken='true'] {
+  background: var(--vib-sunken);
+  box-shadow: inset 0 1px 2px rgba(8, 12, 22, 0.08);
+}
+
+/* ---- Interaction: gel press ---- */
+.glass[data-pressable='true'],
+.vibrancy[data-pressable='true'] {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.glass[data-pressable='true']:active,
+.vibrancy[data-pressable='true']:active {
+  transform: scale(0.97);
+  transition-duration: var(--d-fast);
+}
+.glass[data-pressable='true']:focus-visible,
+.vibrancy[data-pressable='true']:focus-visible {
+  outline: 2px solid var(--a-blue);
+  outline-offset: 3px;
+}
+
+/* ---- Lensing present: the surface refracts into existence rather than fading.
+       blur + refraction scale ramp together. Neutralised by reduced-motion tokens. ---- */
+@keyframes eidos-lens-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.965);
+    -webkit-backdrop-filter: blur(0) saturate(100%);
+    backdrop-filter: blur(0) saturate(100%);
+  }
+  60% { opacity: 1; }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.lens-in {
+  animation: eidos-lens-in var(--d-lens) var(--ease-gel) both;
+}
+
+@keyframes eidos-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+.rise { animation: eidos-rise var(--d-slow) var(--ease-out) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lens-in, .rise { animation: none; opacity: 1; transform: none; }
+}

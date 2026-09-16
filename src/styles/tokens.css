@@ -1,0 +1,234 @@
+/* Eidos design tokens — see docs/DESIGN.md.
+   Nothing in the app may invent a colour, radius, shadow or duration.
+   Everything resolves through this file. */
+
+:root {
+  /* ---- Radius ladder (concentricity: r_child = r_parent - padding) ---- */
+  --r-1: 6px;
+  --r-2: 10px;
+  --r-3: 14px;
+  --r-4: 18px;
+  --r-5: 22px;
+  --r-outer: 28px;
+  --r-sheet: 34px;
+  --r-capsule: 999px;
+
+  /* ---- Spacing: 4px grid ---- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+
+  /* ---- Type: modular 1.125 anchored at 17px body ---- */
+  --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Pretendard Variable',
+    Pretendard, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Segoe UI', Roboto, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Pretendard Variable',
+    Pretendard, 'Apple SD Gothic Neo', sans-serif;
+  --font-mono: 'SF Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --t-caption2: 11px;
+  --t-caption: 12px;
+  --t-footnote: 13px;
+  --t-subhead: 15px;
+  --t-body: 17px;
+  --t-headline: 17px;
+  --t-title3: 20px;
+  --t-title2: 22px;
+  --t-title1: 28px;
+  --t-large: 34px;
+  --t-hero: 44px;
+
+  /* Optical tracking — tightens as size grows, like SF Pro optical sizes */
+  --tr-tight: -0.022em;
+  --tr-snug: -0.014em;
+  --tr-normal: -0.006em;
+  --tr-wide: 0.02em;
+
+  /* ---- Motion ---- */
+  --ease-gel: cubic-bezier(0.34, 1.42, 0.44, 1);      /* elastic settle */
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-inout: cubic-bezier(0.65, 0, 0.35, 1);
+  --d-fast: 160ms;
+  --d-base: 240ms;
+  --d-slow: 380ms;
+  --d-lens: 380ms;
+
+  /* ---- Elevation: blur / refraction / shadow ---- */
+  --e1-blur: 20px;  --e1-refract: 0.55;
+  --e2-blur: 28px;  --e2-refract: 0.80;
+  --e3-blur: 36px;  --e3-refract: 1.00;
+
+  /* Adaptive shadow factor: raised by scroll containers over dense content */
+  --shadow-adapt: 1;
+
+  --sh-1: 0 6px 18px rgba(8, 12, 22, calc(0.10 * var(--shadow-adapt)));
+  --sh-2: 0 14px 38px rgba(8, 12, 22, calc(0.16 * var(--shadow-adapt))),
+          0 2px 6px rgba(8, 12, 22, calc(0.06 * var(--shadow-adapt)));
+  --sh-3: 0 28px 70px rgba(8, 12, 22, calc(0.24 * var(--shadow-adapt))),
+          0 4px 12px rgba(8, 12, 22, calc(0.08 * var(--shadow-adapt)));
+
+  /* ---- Semantic accents (content layer owns colour) ---- */
+  --a-blue: #0a84ff;
+  --a-indigo: #5e5ce6;
+  --a-teal: #30b8c4;
+  --a-green: #2fbf5d;
+  --a-yellow: #ffb01f;
+  --a-orange: #ff8a3d;
+  --a-red: #ff4d4f;
+  --a-pink: #ff5fa2;
+  --a-purple: #a45cff;
+  --a-graphite: #7c8698;
+}
+
+/* ================= LIGHT ================= */
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #eceff5;
+  --bg-2: #e3e7ef;
+  --bg-elev: #ffffff;
+  --canvas-tint-a: #dfe6f4;
+  --canvas-tint-b: #efe6f2;
+  --canvas-tint-c: #e2eef0;
+
+  --label: #0d1119;
+  --label-2: rgba(13, 17, 25, 0.62);
+  --label-3: rgba(13, 17, 25, 0.42);
+  --label-4: rgba(13, 17, 25, 0.24);
+  --on-tint: #ffffff;
+
+  --sep: rgba(13, 17, 25, 0.10);
+  --sep-strong: rgba(13, 17, 25, 0.18);
+
+  /* Glass material */
+  --glass-fill: rgba(255, 255, 255, 0.58);
+  --glass-fill-clear: rgba(255, 255, 255, 0.16);
+  --glass-floor: rgba(255, 255, 255, 0.34);   /* contrast floor, never below this */
+  --glass-rim: rgba(255, 255, 255, 0.92);
+  --glass-rim-low: rgba(255, 255, 255, 0.34);
+  --glass-edge: rgba(13, 17, 25, 0.10);
+  --glass-spec: rgba(255, 255, 255, 0.85);
+  --glass-sat: 180%;
+  --glass-bright: 1.06;
+
+  /* Vibrancy fill — used where glass-on-glass would otherwise occur */
+  --vib-fill: rgba(255, 255, 255, 0.52);
+  --vib-fill-strong: rgba(255, 255, 255, 0.78);
+  --vib-sunken: rgba(13, 17, 25, 0.05);
+}
+
+/* ================= DARK ================= */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --bg: #0a0c11;
+    --bg-2: #11141b;
+    --bg-elev: #171b23;
+    --canvas-tint-a: #131a2b;
+    --canvas-tint-b: #201628;
+    --canvas-tint-c: #0f2028;
+
+    --label: #f3f5f9;
+    --label-2: rgba(243, 245, 249, 0.66);
+    --label-3: rgba(243, 245, 249, 0.44);
+    --label-4: rgba(243, 245, 249, 0.24);
+    --on-tint: #ffffff;
+
+    --sep: rgba(243, 245, 249, 0.12);
+    --sep-strong: rgba(243, 245, 249, 0.22);
+
+    --glass-fill: rgba(28, 33, 44, 0.62);
+    --glass-fill-clear: rgba(20, 24, 33, 0.24);
+    --glass-floor: rgba(20, 24, 33, 0.40);
+    --glass-rim: rgba(255, 255, 255, 0.30);
+    --glass-rim-low: rgba(255, 255, 255, 0.10);
+    --glass-edge: rgba(0, 0, 0, 0.55);
+    --glass-spec: rgba(255, 255, 255, 0.42);
+    --glass-sat: 160%;
+    --glass-bright: 1.12;
+
+    --vib-fill: rgba(255, 255, 255, 0.08);
+    --vib-fill-strong: rgba(255, 255, 255, 0.14);
+    --vib-sunken: rgba(0, 0, 0, 0.26);
+
+    --sh-1: 0 6px 18px rgba(0, 0, 0, calc(0.34 * var(--shadow-adapt)));
+    --sh-2: 0 14px 38px rgba(0, 0, 0, calc(0.44 * var(--shadow-adapt))),
+            0 2px 6px rgba(0, 0, 0, calc(0.24 * var(--shadow-adapt)));
+    --sh-3: 0 28px 70px rgba(0, 0, 0, calc(0.56 * var(--shadow-adapt))),
+            0 4px 12px rgba(0, 0, 0, calc(0.30 * var(--shadow-adapt)));
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0a0c11;
+  --bg-2: #11141b;
+  --bg-elev: #171b23;
+  --canvas-tint-a: #131a2b;
+  --canvas-tint-b: #201628;
+  --canvas-tint-c: #0f2028;
+  --label: #f3f5f9;
+  --label-2: rgba(243, 245, 249, 0.66);
+  --label-3: rgba(243, 245, 249, 0.44);
+  --label-4: rgba(243, 245, 249, 0.24);
+  --sep: rgba(243, 245, 249, 0.12);
+  --sep-strong: rgba(243, 245, 249, 0.22);
+  --glass-fill: rgba(28, 33, 44, 0.62);
+  --glass-fill-clear: rgba(20, 24, 33, 0.24);
+  --glass-floor: rgba(20, 24, 33, 0.40);
+  --glass-rim: rgba(255, 255, 255, 0.30);
+  --glass-rim-low: rgba(255, 255, 255, 0.10);
+  --glass-edge: rgba(0, 0, 0, 0.55);
+  --glass-spec: rgba(255, 255, 255, 0.42);
+  --glass-sat: 160%;
+  --glass-bright: 1.12;
+  --vib-fill: rgba(255, 255, 255, 0.08);
+  --vib-fill-strong: rgba(255, 255, 255, 0.14);
+  --vib-sunken: rgba(0, 0, 0, 0.26);
+  --sh-1: 0 6px 18px rgba(0, 0, 0, calc(0.34 * var(--shadow-adapt)));
+  --sh-2: 0 14px 38px rgba(0, 0, 0, calc(0.44 * var(--shadow-adapt))),
+          0 2px 6px rgba(0, 0, 0, calc(0.24 * var(--shadow-adapt)));
+  --sh-3: 0 28px 70px rgba(0, 0, 0, calc(0.56 * var(--shadow-adapt))),
+          0 4px 12px rgba(0, 0, 0, calc(0.30 * var(--shadow-adapt)));
+}
+
+/* ---- Accessibility: the material responds to system settings ---- */
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-fill: color-mix(in srgb, var(--bg-elev) 92%, transparent);
+    --glass-fill-clear: color-mix(in srgb, var(--bg-elev) 88%, transparent);
+    --glass-floor: var(--glass-fill);
+    --e1-refract: 0; --e2-refract: 0; --e3-refract: 0;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --glass-fill: color-mix(in srgb, var(--bg-elev) 96%, transparent);
+    --glass-fill-clear: color-mix(in srgb, var(--bg-elev) 94%, transparent);
+    --label-2: var(--label);
+    --label-3: var(--label);
+    --sep: var(--label);
+    --sep-strong: var(--label);
+    --glass-edge: var(--label);
+    --e1-refract: 0; --e2-refract: 0; --e3-refract: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --d-fast: 1ms;
+    --d-base: 1ms;
+    --d-slow: 1ms;
+    --d-lens: 1ms;
+    --ease-gel: linear;
+  }
+}
