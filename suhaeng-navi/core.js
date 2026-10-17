@@ -34,7 +34,7 @@ const DEF_NOTIF = { on: true, events: true, step: 10, dueEve: true, dueMorning: 
 /* ---------- prompts: the app sends exactly these ---------- */
 const P = {
   read: {
-    name: '공지 정리', icon: 'camera', when: '새 수행 카드 · 사진이나 글을 넣었을 때', tier: '기본 모델 · 사진 첨부',
+    name: '공지 정리', icon: 'camera', when: '공지 스캔', tier: '기본 모델 · 사진 첨부',
     why: '칠판, 학습지, 단톡방마다 형식이 달라 규칙으로는 못 뽑아요.',
     tpl:
 `너는 한국 중·고등학생의 수행평가 공지를 정리하는 도우미 '수행 내비'야.
@@ -117,7 +117,7 @@ JSON만 출력해. 형식:
 {"steps":[{"name":"자료 조사","minutes":50,"done":"믿을 만한 출처 3개를 메모"}]}`
   },
   cheer: {
-    name: '다시 짜기 응원', icon: 'heart', when: '오늘 · "오늘 못 했어요"', tier: '빠른 모델',
+    name: '다시 짜기 응원', icon: 'heart', when: '투데이 · "오늘 못 했어요"', tier: '빠른 모델',
     why: '남은 일정은 앱이 다시 계산하고, AI는 학생 상황에 맞는 말투로 다음 행동만 짚어요.',
     tpl:
 `너는 '수행 내비'야. 학생이 오늘 계획한 수행평가 작업을 못 했어.
@@ -158,8 +158,8 @@ JSON만 출력해. 형식:
 이어지는 학생 메시지에 답해. 쉬운 말로 5문장 이내, 마크다운 기호 없이 텍스트만.`
   },
   chat: {
-    name: '내비에게 묻기', icon: 'spark', when: '내비에게 묻기 화면', tier: '빠른 모델 · 대화',
-    why: '수행 보드 전체와 오늘 계획을 근거로 "뭐부터 해?"에 답해요.',
+    name: '내비 코치', icon: 'spark', when: '내비 코치', tier: '빠른 모델 · 대화',
+    why: '수행 카드함 전체와 오늘 계획을 근거로 "뭐부터 해?"에 답해요.',
     tpl:
 `너는 중·고등학생의 수행평가 도우미 '수행 내비'야. 말투: {{말투}}
 
@@ -198,6 +198,166 @@ JSON만 출력해. 형식:
 {{시간표}}`
   }
 };
+/* study lab and membership prompts — tier marks who sees them */
+Object.assign(P, {
+  quiz: {
+    name: '시험지 만들기', icon: 'book', when: '스터디 랩 · 만들기', tier: '빠른 모델 · 사진 첨부 가능', plan: 'air',
+    why: '교과서마다 표현이 달라서, 자료를 읽고 개념을 골라 문제로 바꾸는 일은 AI가 해요. 채점은 앱이 해요.',
+    tpl:
+`너는 '수행 내비'의 스터디 랩이야. 아래 [학습 자료]만 근거로 시험 문제를 만들어.
+
+[조건]
+과목: {{과목}} · 문항 수: {{문항수}} · 난이도: {{난이도}} · 유형: {{유형}}
+
+[규칙]
+1. 자료에 있는 내용만 출제해. 자료에 없는 사실은 쓰지 마.
+2. 객관식(mc)은 보기 4개, answer는 정답 보기 번호(0부터). OX(ox)는 answer가 "O" 또는 "X". 단답(short)은 answer에 짧은 정답, accept에 같은 뜻의 다른 표현 배열.
+3. 문항마다 concept(핵심 개념 1~3단어)과 explain(왜 정답인지 1~2문장, 자료 근거)을 써.
+4. 쉬운 문제부터 어려운 문제 순서로. 자료 전체를 고르게 다뤄.
+5. 중학생이 이해할 수 있는 말로.
+
+[출력]
+JSON만 출력해. 형식:
+{"title":"시험지 제목","questions":[{"type":"mc","q":"문제","choices":["보기1","보기2","보기3","보기4"],"answer":1,"explain":"해설","concept":"개념","level":1}]}
+
+[학습 자료]
+{{자료}}`
+  },
+  rewind: {
+    name: '오답 되감기', icon: 'route', when: '스터디 랩 · 채점 결과', tier: '빠른 모델', plan: 'pro',
+    why: '틀린 문제를 그대로 다시 내면 답만 외워요. 같은 개념을 다른 각도로 묻는 변형 문제는 AI가 만들어요.',
+    tpl:
+`너는 '수행 내비'의 오답 코치야. 학생이 틀린 문제들의 개념을 다른 방식으로 다시 묻는 변형 문제를 만들어.
+
+[틀린 문제]
+{{오답}}
+
+[규칙]
+1. 문제마다 같은 개념을 다른 상황, 다른 표현으로 묻는 문제 2개씩. 원래 문제를 베끼지 마.
+2. 형식과 규칙은 원래 시험지와 같아: mc는 보기 4개와 정답 번호, ox는 "O"/"X", short는 answer와 accept.
+3. explain에는 학생이 왜 헷갈렸을지 한 문장을 덧붙여.
+
+[출력]
+JSON만 출력해. 형식:
+{"title":"오답 되감기","questions":[{"type":"mc","q":"","choices":["","","",""],"answer":0,"explain":"","concept":"","level":2}]}`
+  },
+  conceptmap: {
+    name: '개념 지도', icon: 'route', when: '스터디 랩 · 개념 지도', tier: '기본 모델', plan: 'performance',
+    why: '개념 사이의 관계를 찾는 일은 글을 이해해야 해서 AI가 하고, 그림은 앱이 그려요.',
+    tpl:
+`너는 '수행 내비'의 개념 지도 도우미야. [학습 자료]의 핵심 개념과 관계를 정리해.
+
+[규칙]
+1. 가운데 개념 1개(center)와 연결된 개념 5~9개(nodes). 이름은 10자 이내.
+2. 개념마다 note에 자료 근거로 한 문장 설명.
+3. links는 두 개념 사이 관계를 짧은 말(예: "원인", "예시", "반대")로. from과 to는 node의 id 또는 "center".
+4. 자료에 없는 개념은 넣지 마.
+
+[출력]
+JSON만 출력해. 형식:
+{"center":{"label":"","note":""},"nodes":[{"id":"n1","label":"","note":""}],"links":[{"from":"center","to":"n1","label":""}]}
+
+[학습 자료]
+{{자료}}`
+  },
+  d30: {
+    name: '시험 D-30 마스터플랜', icon: 'calendar', when: '스터디 랩 · 시험 플랜', tier: '기본 모델', plan: 'performance',
+    why: '과목과 범위마다 공부 단계가 달라서 AI가 나누고, 날짜 배치는 역산 플래너가 해요.',
+    tpl:
+`너는 '수행 내비'의 시험 플래너야. 정기고사를 과목별 공부 단계로 나눠.
+
+[시험]
+{{시험}}
+
+[규칙]
+1. 과목마다 단계 4~6개. 개념 정리 → 문제 풀이 → 오답 정리 → 최종 점검처럼, 범위 크기에 맞게.
+2. 단계마다 minutes(30~120)와 다 했는지 알 수 있는 done 기준 1줄.
+3. 범위에 없는 내용은 넣지 마.
+
+[출력]
+JSON만 출력해. 형식:
+{"subjects":[{"subject":"국어","steps":[{"name":"1단원 개념 정리","minutes":60,"done":"핵심 개념 10개를 백지에 써 보기"}]}]}`
+  },
+  selfcheck: {
+    name: '루브릭 셀프 채점', icon: 'list', when: '수행 카드 · 멤버십 도구', tier: '기본 모델', plan: 'pro',
+    why: '내 초안이 기준을 얼마나 채웠는지 읽고 판단하는 일이라 AI가 필요해요. 고쳐 쓰지는 않아요.',
+    tpl:
+`너는 '수행 내비'의 셀프 채점 도우미야. 학생이 쓴 초안이 채점 기준을 얼마나 채웠는지 점검해.
+
+[원칙: 대신 해주지 않는 AI]
+- 초안을 고쳐 쓰거나 새 문장을 써 주지 마. 빠진 점은 질문 형태로만 짚어.
+
+[수행평가]
+{{수행평가}}
+
+[학생 초안]
+{{초안}}
+
+[규칙]
+1. 기준마다 level은 "충족", "부분", "부족" 가운데 하나.
+2. evidence에는 초안에서 근거가 되는 구절을 그대로 짧게 인용. 없으면 빈 문자열.
+3. missing에는 더 채우려면 스스로 답해 볼 질문 1개.
+
+[출력]
+JSON만 출력해. 형식:
+{"criteria":[{"original":"기준","level":"부분","evidence":"","missing":""}],"overall":"한 줄 총평"}`
+  },
+  questions: {
+    name: '예상 질문 연습', icon: 'chat', when: '수행 카드 · 멤버십 도구', tier: '빠른 모델', plan: 'pro',
+    why: '발표 주제와 기준을 읽고 선생님 입장에서 질문을 떠올리는 일은 언어 AI가 잘해요. 답은 학생이 준비해요.',
+    tpl:
+`너는 수행평가를 채점하는 선생님이야. 아래 발표·말하기 수행평가에서 학생에게 물어볼 만한 질문을 미리 뽑아.
+
+[수행평가]
+{{수행평가}}
+
+[학생이 준비한 내용 메모]
+{{메모}}
+
+[규칙]
+1. 질문 5개. 채점 기준과 연결되게.
+2. why에는 이 질문으로 무엇을 확인하려는지, prep에는 학생이 준비해 둘 것(답이 아니라 준비 방향).
+3. 모범 답안은 쓰지 마.
+
+[출력]
+JSON만 출력해. 형식:
+{"questions":[{"q":"","why":"","prep":""}]}`
+  },
+  weekly: {
+    name: 'AI 주간 리포트', icon: 'spark', when: '성장 리포트', tier: '빠른 모델', plan: 'performance',
+    why: '숫자를 해석해서 다음 주에 조심할 점으로 바꾸는 일이라 AI가 해요.',
+    tpl:
+`너는 '수행 내비'의 학습 코치야. 학생의 한 주 기록을 보고 주간 리포트를 써. 말투: {{말투}}
+
+[이번 주 기록]
+{{기록}}
+
+[규칙]
+- 잘한 점 1개, 다음 주에 조심할 점 1개, 바로 할 행동 1개를 자연스럽게 5문장 이내로.
+- 기록에 없는 일은 지어내지 마. 탓하는 말 금지. 텍스트만 출력해.`
+  },
+  priority: {
+    name: '우선순위 협상', icon: 'flame', when: '투데이 · 몰림 경보', tier: '기본 모델', plan: 'performance',
+    why: '마감, 남은 양, 반영 비율을 함께 따져 무엇부터 할지 정하는 판단이라 AI가 제안하고 학생이 정해요.',
+    tpl:
+`너는 '수행 내비'의 우선순위 코치야. 몰림 주를 앞둔 학생과 무엇부터 끝낼지 정해.
+
+[몰린 수행평가]
+{{목록}}
+
+[쓸 수 있는 시간]
+{{시간}}
+
+[규칙]
+1. plan에 수행평가마다 순서대로 action(먼저 끝낼 것, 미리 해 둘 것)과 why(마감·남은 양·반영 비율 근거)를 써.
+2. 과제를 빼거나 대충 하라고 하지 마. 대신 미리 당겨 할 단계를 짚어.
+3. message에 응원 한 문장.
+
+[출력]
+JSON만 출력해. 형식:
+{"plan":[{"subject":"","action":"","why":""}],"message":""}`
+  }
+});
 const fill = (tpl, vars) => tpl.replace(/\{\{(.+?)\}\}/g, (m, k) => (k in vars ? vars[k] : m));
 
 /* ---------- dates ---------- */
@@ -307,8 +467,12 @@ function fresh() {
            calendars: DEFAULT_CALS(), events: seedEvents(), school: DEFAULT_SCHOOL(),
            notif: { ...DEF_NOTIF }, inbox: [], fired: {}, snoozes: [],
            log: [], skips: [], chat: [], cheer: null, view: 'today', detail: null, detailTab: 'check',
-           boardFilter: 'open', boardSubject: '', cal: { view: 'week', date: today(), q: '' }, rail: false };
+           boardFilter: 'open', boardSubject: '', cal: { view: 'week', date: today(), q: '' }, rail: false,
+           look: { ...DEF_LOOK }, plan: 'air', usage: { month: today().slice(0, 7), quiz: 0 },
+           study: { sets: [], cards: [], maps: [] }, studyTab: 'make', timerLog: [], timer: null, pace: true,
+           seasons: { active: 'term' }, reports: {} };
 }
+const DEF_LOOK = { style: 'liquid', glass: 70, blur: 24, round: 60, motion: 'smooth', ambient: true, theme: 'sunrise' };
 function normalizeCard(a) {
   return { checked: {}, checklist: null, steps: [], chat: [], photoIds: [], materials: [], rubric: [], type: '', ...a,
            materials: strs(a.materials), rubric: strs(a.rubric), steps: Array.isArray(a.steps) ? a.steps : [],
@@ -327,7 +491,12 @@ function load() {
       academies: arr(s.academies, f.academies), log: arr(s.log, []), skips: arr(s.skips, []), chat: arr(s.chat, []),
       calendars: arr(s.calendars, f.calendars), events: arr(s.events, migrated ? f.events : []), school: s.school && s.school.periods ? s.school : f.school,
       notif: { ...DEF_NOTIF, ...(s.notif || {}) }, inbox: arr(s.inbox, []), fired: s.fired && typeof s.fired === 'object' ? s.fired : {}, snoozes: arr(s.snoozes, []),
-      cal: { ...f.cal, ...(s.cal || {}) } };
+      cal: { ...f.cal, ...(s.cal || {}) },
+      look: { ...DEF_LOOK, ...(s.look || {}), ...(s.settings && s.settings.solid && !s.look ? { style: 'simple' } : {}) },
+      plan: ['air', 'pro', 'performance'].includes(s.plan) ? s.plan : 'air',
+      usage: s.usage && s.usage.month ? s.usage : f.usage,
+      study: { sets: arr(s.study && s.study.sets, []), cards: arr(s.study && s.study.cards, []), maps: arr(s.study && s.study.maps, []) },
+      timerLog: arr(s.timerLog, []), seasons: s.seasons && s.seasons.active ? s.seasons : f.seasons, reports: s.reports || {} };
     for (const c of f.calendars) if (!out.calendars.some(x => x.id === c.id)) out.calendars.push(c);
     if (out.view === 'week') out.view = 'calendar';
     if (!Array.isArray(out.settings.schoolEnd) || out.settings.schoolEnd.length !== 5) out.settings.schoolEnd = DEF_SETTINGS.schoolEnd.slice();
@@ -430,8 +599,9 @@ function buildPlans() {
   const capLeft = date => { const g = getDay(date); return Math.min(g.left, g.iv.reduce((n, [s, e]) => n + (e - s), 0)); };
   const wc = weekCounts();
   const plans = {};
+  const pace = paceFactor();
   for (const a of state.cards.filter(c => c.due && c.steps.length).sort(byDue)) {
-    const remaining = a.steps.map((s, i) => ({ ...s, i })).filter(s => !s.done);
+    const remaining = a.steps.map((s, i) => ({ ...s, i, minutes: pace === 1 ? s.minutes : Math.max(10, Math.round(s.minutes * pace / 10) * 10) })).filter(s => !s.done);
     const total = remaining.reduce((n, s) => n + s.minutes, 0);
     const p = { blocks: [], start: null, buffer: null, tight: false, unplaced: 0, total, factor: 1.5, usedBuffer: false };
     plans[a.id] = p;
@@ -488,6 +658,13 @@ function buildPlans() {
     if (p.unplaced) p.tight = true;
   }
   return plans;
+}
+/* 내 속도 보정: the median of actual/planned minutes from focus-timer sessions */
+function paceFactor() {
+  if (typeof has !== 'function' || !has('pace') || !state.pace) return 1;
+  const r = state.timerLog.filter(l => l.planned > 0 && l.actual > 0).slice(-20).map(l => l.actual / l.planned).sort((a, b) => a - b);
+  if (r.length < 3) return 1;
+  return clamp(Math.round(r[Math.floor(r.length / 2)] * 100) / 100, 0.7, 1.6);
 }
 let PLANS = {};
 const allBlocks = () => Object.values(PLANS).flatMap(p => p.blocks).sort((x, y) => x.date.localeCompare(y.date) || x.start - y.start);

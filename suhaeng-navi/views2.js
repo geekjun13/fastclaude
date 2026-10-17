@@ -1,7 +1,7 @@
 'use strict';
-/* 수행 내비 — views: 새 수행 카드, 주간 계획, 시간표 */
+/* 수행 내비 — views: 공지 스캔, 시간표 */
 
-/* ---------- 새 수행 카드: 모으기 → 읽고 풀기 → 확인하기 → 이끌기 ---------- */
+/* ---------- 공지 스캔: 모으기 → 읽고 풀기 → 확인하기 → 이끌기 ---------- */
 const cap = { step: 1, images: [], text: '', items: [], fallback: false, saved: [], draft: null };
 const maxImages = () => (imageLimits ? imageLimits.maxCount : 5);
 function stepper() {
@@ -79,16 +79,16 @@ function capDone() {
   const cards = cap.saved.map(find).filter(Boolean);
   const hot = crunchWeeks().filter(w => w.cards.some(a => cap.saved.includes(a.id)));
   return `<section class="sec">
-    <div class="cell pad-l stack" style="align-items:flex-start"><span class="chip green">${icon('check')}수행 보드에 ${cards.length}장 저장</span><h2 style="font-size:22px">이제 언제부터 할지 정해 볼까요?</h2>
+    <div class="cell pad-l stack" style="align-items:flex-start"><span class="chip green">${icon('check')}수행 카드함에 ${cards.length}장 저장</span><h2 style="font-size:22px">이제 언제부터 할지 정해 볼까요?</h2>
       <p class="muted">단계를 나누면 학원 시간을 피해 빈 시간에 거꾸로 배치하고, 몰리는 주는 미리 알려 줘요.</p></div>
     ${hot.length ? crunchAlerts(true) : ''}
     <div class="cards">${cards.map(scard).join('')}</div>
-    <div class="row-end"><button class="btn btn-soft" data-act="capRestart">${icon('camera')}다른 공지 읽기</button><button class="btn btn-line" data-act="go" data-arg="board">수행 보드</button>${cards[0] ? `<button class="btn btn-pri" data-act="openPlan" data-arg="${cards[0].id}">${icon('route')}단계 나누러 가기</button>` : ''}</div>
+    <div class="row-end"><button class="btn btn-soft" data-act="capRestart">${icon('camera')}다른 공지 읽기</button><button class="btn btn-line" data-act="go" data-arg="board">수행 카드함</button>${cards[0] ? `<button class="btn btn-pri" data-act="openPlan" data-arg="${cards[0].id}">${icon('route')}단계 나누러 가기</button>` : ''}</div>
   </section>`;
 }
 function viewCapture() {
   const body = busy.read ? capReading() : cap.step === 3 ? capConfirm() : cap.step === 4 ? capDone() : capCollect();
-  return { title: '새 수행 카드', sub: '공지 사진 한 장이 수행 카드 한 장이 돼요', body: `${stepper()}${body}` };
+  return { title: '공지 스캔', sub: '공지 사진 한 장이 수행 카드 한 장이 돼요', body: `${stepper()}${body}` };
 }
 
 /* ---------- 시간표 ---------- */
@@ -100,13 +100,18 @@ function schoolTable() {
     ${[1, 2, 3, 4, 5].map(wd => { const v = (sc.grid[wd] || [])[i] || ''; return `<td><input class="tt-in${v ? ' hue' : ''}" style="--h:${hueOf(v)}" id="sg-${wd}-${i}" data-sg="${wd}:${i}" value="${esc(v)}" placeholder="—" aria-label="${WD[wd]}요일 ${i + 1}교시"></td>`; }).join('')}</tr>`).join('');
   return `<div class="tt-scroll"><table class="tt"><thead><tr><th>교시</th><th>시간</th>${['월', '화', '수', '목', '금'].map(d => `<th>${d}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
+function seasonBar() {
+  const cur = state.seasons.active;
+  return `<section class="season cell pad"><div class="row-sb"><div><b>${icon('clock')} 시간표 시즌</b><div class="small faint">시즌마다 학교·학원 시간표와 공부 시간을 따로 저장해요. 바꾸면 계획이 그 시즌 시간표로 다시 짜여요.</div></div>
+    <div class="seg" data-seg="season" role="group" aria-label="시간표 시즌">${Object.entries(SEASONS).map(([k, l]) => `<button data-act="season" data-arg="${k}" aria-pressed="${cur === k}">${l}</button>`).join('')}</div></div></section>`;
+}
 function viewTimetable() {
   const s = state.settings;
   const tf = (id, attr, v) => `<input class="input" type="time" id="${id}" ${attr} value="${hm(v)}">`;
   const nf = (k, label, lo, hi) => `<label class="field"><span>${label}</span><input class="input" type="number" id="set-${k}" data-set="${k}" min="${lo}" max="${hi}" step="10" value="${s[k]}"></label>`;
   return {
     title: '시간표', sub: '학교와 학원 시간을 등록하면 캘린더에 보이고, 계획은 이 시간을 피해서 넣어요',
-    body: `
+    body: `${has('seasons') ? seasonBar() : ''}
     <section class="sec"><div class="sec-h"><h2><span class="ico hue" style="--h:40">${icon('board')}</span>학교 시간표</h2>
       <div class="row"><button class="btn btn-soft btn-sm" data-act="periodDel" ${state.school.periods.length <= 1 ? 'disabled' : ''}>교시 빼기</button><button class="btn btn-soft btn-sm" data-act="periodAdd" ${state.school.periods.length >= 9 ? 'disabled' : ''}>${icon('plus')}교시 추가</button></div></div>
       ${schoolTable()}
@@ -127,6 +132,6 @@ function viewTimetable() {
     </section>
     <section class="sec"><div class="sec-h"><h2><span class="ico hue" style="--h:152">${icon('route')}</span>수행에 쓸 시간</h2></div>
       <div class="cell pad grid g3">${nf('cap', '평일 하루 최대 (분)', 30, 240)}${nf('weekendCap', '주말 하루 최대 (분)', 30, 360)}${nf('travel', '학원 이동 시간 (분)', 0, 60)}</div>
-      <p class="small faint">집중이 잘 되는 시간은 나의 설정에서 고를 수 있어요. 지금은 <b>${esc(FOCUS[s.focus].label)}</b> 시간에 먼저 넣고, 캘린더의 개인 일정도 피해서 계획해요.</p></section>`
+      <p class="small faint">집중이 잘 되는 시간은 설정에서 고를 수 있어요. 지금은 <b>${esc(FOCUS[s.focus].label)}</b> 시간에 먼저 넣고, 캘린더의 개인 일정도 피해서 계획해요.</p></section>`
   };
 }

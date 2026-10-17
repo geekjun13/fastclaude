@@ -1,9 +1,9 @@
 /* 수행 내비 — calendar, notifications, timetable grid, collapsed sidebar.
    Apple Calendar conventions: red today, tinted event blocks with a colour rail,
    a sticky day header, the all-day row, and a live now-line. */
-:root{--today:#E5484D;--today-soft:#FDE7E8;--glass-strong:rgba(255,253,248,.9)}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--today:#FF6369;--today-soft:#3D1D22;--glass-strong:rgba(26,34,56,.92)}}
-:root[data-theme="dark"]{--today:#FF6369;--today-soft:#3D1D22;--glass-strong:rgba(26,34,56,.92)}
+:root{--today:#E5484D;--today-soft:#FDE7E8;--glass-strong:rgb(var(--glass-rgb) / min(.95, calc(var(--glass-a) + .42)))}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--today:#FF6369;--today-soft:#3D1D22}}
+:root[data-theme="dark"]{--today:#FF6369;--today-soft:#3D1D22}
 /* large floating surfaces carry content, so they keep a high tint floor: frosted, not see-through */
 .glass.sheet,.glass.pop,.glass.banner{background:var(--glass-strong)}
 .view{container-type:inline-size}

@@ -190,17 +190,27 @@ async function makeHandout() {
 function setView(v) {
   if (v === 'more') { sheet = { kind: 'more' }; render(); return; }
   if (v === 'week') v = 'calendar';
-  if (v === 'calendar') calScroll = null;
-  if (v === 'capture' && cap.step === 4) capReset();
-  state.view = v; state.detail = null; editing = null; sheet = null;
-  try { history.replaceState(null, '', '#' + v); } catch (e) { /* hash not writable here */ }
-  save(); render(); goTop();
+  if (!VIEWS[v]) v = 'today';
+  const same = v === state.view && !state.detail;
+  withTransition(() => {
+    if (v === 'calendar') calScroll = null;
+    if (v === 'capture' && cap.step === 4) capReset();
+    state.view = v; state.detail = null; editing = null; sheet = null;
+    try { history.replaceState(null, '', '#' + v); } catch (e) { /* hash not writable here */ }
+    save(); render(); goTop();
+  }, same ? 0 : dirTo(v) || 1);
 }
 const H = {
   go: setView,
-  open(id) { state.detail = id; state.detailTab = state.detailTab || 'check'; editing = null; sheet = null; render(); goTop(); },
-  openPlan(id) { state.detail = id; state.detailTab = 'plan'; editing = null; sheet = null; render(); goTop(); },
-  back() { state.detail = null; state.view = 'board'; editing = null; render(); goTop(); },
+  open(id) { withTransition(() => { state.detail = id; state.detailTab = state.detailTab || 'check'; editing = null; sheet = null; render(); goTop(); }, 1); },
+  openPlan(id) { withTransition(() => { state.detail = id; state.detailTab = 'plan'; editing = null; sheet = null; render(); goTop(); }, 1); },
+  back() { withTransition(() => { state.detail = null; state.view = 'board'; editing = null; render(); goTop(); }, -1); },
+  goStudy(tab) { if (tab) state.studyTab = tab; setView('study'); },
+  whatifApply(id) {
+    const a = find(id), d = whatifDates[id];
+    if (!a || !d || !has('whatif')) return;
+    a.due = d; delete whatifDates[id]; save(); render(); toast(`마감을 ${mdMid(d)}로 바꾸고 계획을 다시 짰어요`);
+  },
   detailTab(v) { state.detailTab = v; save(); render(); },
   boardFilter(v) { state.boardFilter = v; save(); render(); },
   boardSubject(v) { state.boardSubject = v; save(); render(); },
@@ -306,14 +316,13 @@ const H = {
   ttCancel() { ttDraft = null; render(); },
   setFocus(v) { state.settings.focus = v; save(); render(); toast(`${FOCUS[v].label} 시간에 먼저 계획해요`); },
   setTone(v) { state.settings.tone = v; save(); render(); },
-  setSolid(v) { state.settings.solid = v === 'solid'; save(); render(); setupLens(); },
   reseed() {
     const ids = new Set(state.cards.map(a => a.id)), eids = new Set(state.events.map(e => e.id));
     state.cards.push(...seedCards().filter(a => !ids.has(a.id)));
     state.events.push(...seedEvents().filter(e => !eids.has(e.id)));
     save(); render(); toast('예시 카드와 일정을 넣었어요');
   },
-  copyData() { copyText(JSON.stringify({ cards: state.cards, academies: state.academies, settings: state.settings }, null, 2)); },
+  copyData() { copyText(JSON.stringify({ cards: state.cards, academies: state.academies, events: state.events, study: state.study, settings: state.settings, look: state.look }, null, 2)); },
   resetAll() {
     if (confirmKey !== 'reset') { arm('reset'); return; }
     confirmKey = null;
@@ -330,7 +339,7 @@ const H = {
   scrim(arg, el, e) { if (e.target === el) { sheet = null; render(); } }
 };
 
-Object.assign(H, CAL_H, NOTI_H);
+Object.assign(H, CAL_H, NOTI_H, FX_H, MEM_H, STUDY_H);
 
 /* ---------- events ---------- */
 document.addEventListener('dblclick', e => {
@@ -388,10 +397,33 @@ document.addEventListener('input', e => {
   else if (d.cq) cardDrafts[d.cq] = el.value;
   else if (d.text) { state.settings[d.text] = el.value; save(); }
   else if (d.ac && d.ac.endsWith(':label')) { const a = state.academies.find(x => x.id === d.ac.split(':')[0]); if (a) { a.label = el.value; save(); } }
+  // 스터디 랩
+  else if (d.bind === 'studyText') { studySrc.text = el.value; errors.quiz = null; }
+  else if (d.bind === 'studySubject') studySrc.subject = el.value;
+  else if (d.bind === 'studyCount') { studySrc.count = +el.value; render(); }
+  else if (d.bind === 'studyLevel') studySrc.level = el.value;
+  else if (d.bind === 'studyKind') studySrc.kind = el.value;
+  else if (d.qa) { if (run && !run.submitted) { run.answers[d.qa] = el.value; const c = document.querySelector('#exam-bar .small'); const set = findSet(run.setId); if (c && set) c.textContent = `${set.questions.filter(q => run.answers[q.id] !== undefined && run.answers[q.id] !== '').length}/${set.questions.length} 답함`; } }
+  else if (d.d30 && d30Draft) d30Draft[d.d30] = el.value;
+  else if (d.d30r && d30Draft) { const [i, k] = d.d30r.split(':'); if (d30Draft.rows[+i]) d30Draft.rows[+i][k] = el.value; }
+  // member tools on a card
+  else if (d.sc) { const a = find(d.sc); if (a) { a.selfcheck = { ...(a.selfcheck || {}), draft: el.value }; errors['selfcheck:' + a.id] = null; save(); } }
+  else if (d.xq) { const a = find(d.xq); if (a) { a.expect = { ...(a.expect || {}), memo: el.value }; save(); } }
+  else if (d.reflect) { const a = find(d.reflect); if (a) { a.reflect = el.value; save(); } }
 });
 document.addEventListener('change', async e => {
   const el = e.target, d = el.dataset || {};
   if (el.id === 'cap-file') { capAddFiles(el.files); el.value = ''; return; }
+  if (el.id === 'study-file') {
+    for (const f of Array.from(el.files || [])) {
+      if (!f.type || !f.type.startsWith('image/')) continue;
+      if (studySrc.images.length >= maxImages()) { toast(`사진은 ${maxImages()}장까지 넣을 수 있어요`); break; }
+      studySrc.images.push({ blob: f, url: URL.createObjectURL(f), name: f.name || '교과서 사진' });
+    }
+    el.value = ''; errors.quiz = null; render(); return;
+  }
+  if (d.wi) { if (el.value) { whatifDates[d.wi] = el.value; render(); } return; }
+  if (d.d30 === 'date') { render(); return; }
   if (el.id === 'tt-file') {
     const files = Array.from(el.files || []).filter(f => f.type.startsWith('image/')); el.value = '';
     if (!files.length) return;
@@ -520,7 +552,7 @@ function lensFor(el, n) {
 }
 function setupLens() {
   document.querySelectorAll('[data-lens]').forEach(el => {
-    if (!lensOK || state.settings.solid) { el.removeAttribute('data-lens-on'); return; }
+    if (!lensOK || state.look.style === 'simple') { el.removeAttribute('data-lens-on'); return; }
     lensFor(el, el.dataset.lens);
   });
 }
@@ -535,11 +567,14 @@ if (lensOK && 'ResizeObserver' in window) {
   const h = location.hash.slice(1);
   if (VIEWS[h]) { state.view = h; state.detail = null; }
   if (!VIEWS[state.view]) state.view = 'today';
+  applyLook();
   initAI();
   render();
   setupLens();
+  splash();
+  renderFocus();
   tickNotifs();
-  setInterval(tickNotifs, 15000);
+  setInterval(tickNotifs, 10000);
   // keep the now-line and today's list honest while the page stays open
   setInterval(() => { if (!sheet && !document.activeElement?.matches?.('input,textarea,select')) render(); }, 60000);
   let w = innerWidth, rt = null;

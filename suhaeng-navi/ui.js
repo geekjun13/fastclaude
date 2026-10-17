@@ -49,9 +49,10 @@ function ring(pct, subject, label) {
   const r = 15, c = 2 * Math.PI * r, off = c * (1 - clamp(pct, 0, 1));
   return `<svg class="ring hue" style="${hueVar(subject)}" viewBox="0 0 38 38" role="img" aria-label="${esc(label || Math.round(pct * 100) + '%')}"><circle class="bg" cx="19" cy="19" r="${r}"/><circle class="fg" cx="19" cy="19" r="${r}" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/><text x="19" y="23" text-anchor="middle">${Math.round(pct * 100)}</text></svg>`;
 }
-const BUSY_LABEL = { read: 'AI가 공지를 읽는 중', rubric: '채점 기준을 푸는 중', steps: '단계를 나누는 중', coach: '답을 쓰는 중', chat: '답을 쓰는 중', cheer: '응원 메시지를 쓰는 중', timetable: '시간표를 읽는 중' };
+const BUSY_LABEL = { read: 'AI가 공지를 읽는 중', rubric: '채점 기준을 푸는 중', steps: '단계를 나누는 중', coach: '답을 쓰는 중', chat: '답을 쓰는 중', cheer: '응원 메시지를 쓰는 중', timetable: '시간표를 읽는 중',
+  quiz: '시험지를 만드는 중', rewind: '변형 문제를 만드는 중', map: '개념 지도를 그리는 중', d30: '시험 플랜을 짜는 중', selfcheck: '기준별로 점검하는 중', questions: '예상 질문을 뽑는 중', weekly: '한 주를 돌아보는 중', priority: '순서를 정하는 중' };
 const busyRow = key => busy[key]
-  ? `<div class="busy"><span class="spin" aria-hidden="true"></span><span>${BUSY_LABEL[key.split(':')[0]]} · <span class="num" data-elapsed="${esc(key)}">0</span>초</span><button class="btn btn-line btn-sm" data-act="stop" data-arg="${esc(key)}">${icon('stop')}멈추기</button></div>` : '';
+  ? `<div class="busy">${logoMark(22, 'pulse')}<span>${BUSY_LABEL[key.split(':')[0]]} · <span class="num" data-elapsed="${esc(key)}">0</span>초</span><button class="btn btn-line btn-sm" data-act="stop" data-arg="${esc(key)}">${icon('stop')}멈추기</button></div>` : '';
 const errRow = key => (errors[key] ? `<p class="err">${esc(errors[key])}</p>` : '');
 const aiNote = () => (aiReady() ? '' : `<p class="small faint">${esc(aiOffText())}</p>`);
 function aiBtn(key, label, act, arg, cls, ico) {
@@ -66,11 +67,11 @@ function checklistCount(a) {
   a.checklist.beforeSubmit.forEach((x, j) => { total++; if (a.checked[`b${j}`]) done++; });
   return { total, done };
 }
-const emptyArt = () => `<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="10" y="12" width="44" height="42" rx="6" fill="var(--sun)" transform="rotate(-5 32 33)"/><circle cx="25" cy="32" r="2.6" fill="#3a2e00"/><circle cx="39" cy="31" r="2.6" fill="#3a2e00"/><path d="M26 40c3 2.4 9 2.4 12-.4" stroke="#3a2e00" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>`;
+const emptyArt = () => logoMark(58);
 
 function toast(text) {
   const el = $('#toast');
-  el.textContent = text;
+  el.innerHTML = `${logoMark(20)}<span>${esc(text)}</span>`;
   el.classList.add('show');
   clearTimeout(toast.t);
   toast.t = setTimeout(() => el.classList.remove('show'), 3400);
@@ -78,9 +79,9 @@ function toast(text) {
 
 /* ---------- shell ---------- */
 const NAV = [
-  { group: '수행', items: [{ id: 'today', label: '오늘', icon: 'sun', h: 44 }, { id: 'board', label: '수행 보드', icon: 'board', h: 214 }, { id: 'calendar', label: '캘린더', icon: 'calendar', h: 4 }] },
-  { group: '내 정보', items: [{ id: 'timetable', label: '시간표', icon: 'clock', h: 262 }, { id: 'progress', label: '진행 기록', icon: 'chart', h: 330 }] },
-  { group: 'AI', items: [{ id: 'chat', label: '내비에게 묻기', icon: 'spark', h: 28 }, { id: 'prompts', label: '프롬프트', icon: 'book', h: 196 }] }
+  { group: '수행', items: [{ id: 'today', label: '투데이', icon: 'sun', h: 44 }, { id: 'board', label: '수행 카드함', icon: 'board', h: 214 }, { id: 'calendar', label: '캘린더', icon: 'calendar', h: 4 }] },
+  { group: '공부', items: [{ id: 'study', label: '스터디 랩', icon: 'book', h: 262 }, { id: 'timetable', label: '시간표', icon: 'clock', h: 178 }, { id: 'progress', label: '성장 리포트', icon: 'chart', h: 330 }] },
+  { group: 'AI', items: [{ id: 'chat', label: '내비 코치', icon: 'spark', h: 28 }, { id: 'prompts', label: 'AI 레시피', icon: 'list', h: 196 }] }
 ];
 function navBadge(id) {
   const t = today();
@@ -99,11 +100,12 @@ function renderShell() {
     `<button class="nav-item" data-act="go" data-arg="${it.id}" ${cur === it.id ? 'aria-current="page"' : ''} title="${it.label}"><span class="ni-ico hue" style="--h:${it.h}">${icon(it.icon)}</span><span class="ni-text">${it.label}</span>${navBadge(it.id)}</button>`).join('')}</div>`).join('');
   const pill = { pending: 'AI 확인 중', ready: 'AI 연결됨', off: 'AI 없음 · 예시 모드', denied: 'AI 꺼짐' }[aiState];
   $('#side-foot').innerHTML = `<div class="row-sb side-meta"><span class="ai-pill ${aiState}" title="${pill}"><i></i><span class="ap-t">${pill}</span></span>${innerWidth >= 1200 ? `<button class="btn btn-soft btn-icon btn-sm" data-act="railToggle" aria-label="${rail ? '사이드바 펼치기' : '사이드바 접기'}" title="${rail ? '펼치기' : '접기'}">${icon(rail ? 'next' : 'back')}</button>` : ''}</div>
-    <button class="me" data-act="go" data-arg="settings" ${cur === 'settings' ? 'aria-current="page"' : ''} title="나의 설정"><span class="avatar">${esc((state.settings.name || '나').slice(0, 1))}</span><span class="me-t"><b>${esc(state.settings.name || '나')}</b><small>${esc(state.settings.grade || '나의 설정')}</small></span>${icon('gear')}</button>`;
+    <button class="me" data-act="go" data-arg="settings" ${cur === 'settings' ? 'aria-current="page"' : ''} title="설정"><span class="avatar">${esc((state.settings.name || '나').slice(0, 1))}</span><span class="me-t"><b>${esc(state.settings.name || '나')}${state.plan !== 'air' ? ` <span class="plan-badge">${TIERS[state.plan].name}</span>` : ''}</b><small>${esc(state.settings.grade || '설정')}</small></span>${icon('gear')}</button>`;
   document.querySelectorAll('.mt-item').forEach(b => {
     const on = b.dataset.arg === cur || (b.dataset.arg === 'more' && !['today', 'board', 'calendar', 'capture'].includes(cur));
     if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
+  document.title = unread() ? `(${unread()}) 수행 내비` : '수행 내비';
   $('#tb-bell').innerHTML = bellBtn(false);
   $('#m-bell').innerHTML = bellBtn(true);
 }
@@ -112,7 +114,7 @@ function renderShell() {
 let sheet = null, lastSheet = null;
 const SHEETS = {
   more() {
-    const items = [...NAV[1].items, ...NAV[2].items, { id: 'settings', label: '나의 설정', icon: 'gear', h: 220 }];
+    const items = [...NAV[1].items, ...NAV[2].items, { id: 'settings', label: '설정', icon: 'gear', h: 220 }];
     const pill = { pending: 'AI 확인 중', ready: 'AI 연결됨', off: 'AI 없음 · 예시 모드', denied: 'AI 꺼짐' }[aiState];
     return { html: `<div class="sheet-h"><h3>더 보기</h3><button class="btn btn-soft btn-icon btn-sm" data-act="closeSheet" aria-label="닫기">${icon('x')}</button></div>
       <div class="stack-s">${items.map(it => `<button class="nav-item" data-act="go" data-arg="${it.id}"><span class="ni-ico hue" style="--h:${it.h}">${icon(it.icon)}</span><span class="ni-text">${it.label}</span>${icon('next')}</button>`).join('')}</div>
@@ -159,11 +161,12 @@ function render() {
   $('#tb-title').innerHTML = `<h1>${v.title}</h1>${v.sub ? `<p>${v.sub}</p>` : ''}`;
   $('#tb-actions').innerHTML = v.actions || '';
   $('#m-title').innerHTML = v.title;
-  document.body.classList.toggle('solid', !!state.settings.solid);
   renderShell();
   renderSheet();
   hydratePhotos();
   if (v.after) v.after();
+  fxAfterRender();
+  renderFocus();
 
   if (focusId) {
     const el = document.getElementById(focusId);

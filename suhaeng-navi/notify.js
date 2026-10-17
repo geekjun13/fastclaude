@@ -8,8 +8,10 @@ const NOTI_KIND = {
   due: { label: '마감', icon: 'flag', h: 8 },
   academy: { label: '학원', icon: 'clock', h: 262 },
   crunch: { label: '몰림 경보', icon: 'flame', h: 20 },
+  missed: { label: '놓친 알림', icon: 'bell', h: 44 },
   test: { label: '테스트', icon: 'bell', h: 44 }
 };
+const STICKY = new Set(['due', 'crunch', 'event', 'missed']); // stay until closed
 const atMs = (date, min) => parseYmd(date).getTime() + min * 60000;
 function inQuiet(ms) {
   const N = state.notif; if (!N.quiet) return false;
@@ -67,17 +69,30 @@ const banners = [];
 function renderBanners() {
   const root = document.getElementById('banners');
   if (!root) return;
-  root.innerHTML = banners.map(n => { const k = NOTI_KIND[n.kind] || NOTI_KIND.test; return `<div class="banner glass" role="alert">
+  root.innerHTML = banners.map(n => { const k = NOTI_KIND[n.kind] || NOTI_KIND.test; return `<div class="banner glass${STICKY.has(n.kind) ? ' sticky' : ''}" role="alert">
     <span class="bn-ico hue" style="--h:${k.h}">${icon(k.icon)}</span>
-    <div class="bn-c"><div class="bn-top"><b>${esc(k.label)}</b><small>${when(n.at)}</small></div><strong>${esc(n.title)}</strong><p>${esc(n.body)}</p>
-      <div class="bn-act"><button class="btn btn-pri btn-sm" data-act="notiOpen" data-arg="${esc(n.id)}">열기</button><button class="btn btn-soft btn-sm" data-act="notiSnooze" data-arg="${esc(n.id)}">5분 뒤</button></div></div>
+    <div class="bn-c"><div class="bn-app">${logoMark(15)}<span>수행 내비 · ${esc(k.label)}</span><small>${when(n.at)}</small></div><strong>${esc(n.title)}</strong><p>${esc(n.body)}</p>
+      <div class="bn-act"><button class="btn btn-pri btn-sm" data-act="notiOpen" data-arg="${esc(n.id)}">열기</button>${n.kind === 'missed' ? '' : `<button class="btn btn-soft btn-sm" data-act="notiSnooze" data-arg="${esc(n.id)}">5분 뒤</button>`}</div></div>
     <button class="bn-x" data-act="bannerClose" data-arg="${esc(n.id)}" aria-label="닫기">${icon('x')}</button></div>`; }).join('');
+}
+function dismissLater(n) {
+  setTimeout(() => { const i = banners.findIndex(b => b.id === n.id); if (i >= 0) { banners.splice(i, 1); renderBanners(); } }, 9000);
 }
 function showBanner(n) {
   banners.unshift(n);
   if (banners.length > 3) banners.length = 3;
   renderBanners(); chime();
-  setTimeout(() => { const i = banners.findIndex(b => b.id === n.id); if (i >= 0) { banners.splice(i, 1); renderBanners(); } }, 9000);
+  if (state.notif.sound && navigator.vibrate) { try { navigator.vibrate([24, 40, 24]); } catch (e) { /* optional */ } }
+  if (document.hidden) document.title = `🔔 ${n.title} · 수행 내비`;
+  systemNotify(n);
+  // important ones stay until closed; others fade 9s after the student can actually see them
+  if (!STICKY.has(n.kind)) { if (document.hidden) n.pending = true; else dismissLater(n); }
+}
+/* the browser's own notification, when this page is allowed to show one (best effort) */
+const sysOK = () => { try { return 'Notification' in window && Notification.permission === 'granted'; } catch (e) { return false; } };
+function systemNotify(n) {
+  if (!state.notif.system || !document.hidden || !sysOK()) return;
+  try { const x = new Notification(n.title, { body: n.body, tag: n.id }); x.onclick = () => { window.focus(); NOTI_H.notiOpen(n.id); x.close(); }; } catch (e) { /* not allowed in this frame */ }
 }
 function deliver(n, banner) {
   state.fired[n.id] = n.at;
@@ -85,22 +100,51 @@ function deliver(n, banner) {
   if (state.inbox.length > 60) state.inbox.length = 60;
   if (banner) showBanner(n);
 }
+let nextT = null, lastTick = 0;
 function tickNotifs() {
   const now = Date.now(), t = today();
   let changed = false;
+  const missed = [], firstRun = !Object.keys(state.fired).length && !state.inbox.length;
+  lastTick = now;
   const due = notifPlan(addDays(t, -1), addDays(t, 1));
   const snoozed = state.snoozes.filter(s => s.at <= now);
   state.snoozes = state.snoozes.filter(s => s.at > now);
   for (const n of [...due, ...snoozed]) {
     if (n.at > now || state.fired[n.id]) continue;
     if (now - n.at > 6 * 3600e3) { state.fired[n.id] = n.at; changed = true; continue; } // too old to be useful
-    deliver(n, now - n.at < 15 * 60e3 && !inQuiet(now));
+    const fresh = now - n.at < 15 * 60e3;
+    deliver(n, fresh && !inQuiet(now));
+    if (!fresh) missed.push(n);
     changed = true;
   }
+  // came back after the page slept or was closed: one summary instead of a pile of old banners
+  if (missed.length && !firstRun && !inQuiet(now)) showBanner({ id: 'missed:' + now, at: now, kind: 'missed', title: `놓친 알림 ${missed.length}개`, body: missed.slice(0, 3).map(n => n.title).join(' · ') + (missed.length > 3 ? ' 외' : ''), act: { type: 'inbox' } });
   const cutoff = now - 8 * 86400e3;
   for (const k of Object.keys(state.fired)) if (state.fired[k] < cutoff) { delete state.fired[k]; changed = true; }
   if (changed || snoozed.length) { save(); renderShell(); if (sheet && sheet.kind === 'notif') renderSheet(); }
+  armNext(now);
 }
+/* wake exactly when the next reminder is due, not just on the 10-second sweep */
+function nextNotif(now) {
+  const t = today();
+  return notifPlan(t, addDays(t, 2)).concat(state.snoozes).filter(n => n.at > now && !state.fired[n.id]).sort((a, b) => a.at - b.at)[0] || null;
+}
+function armNext(now) {
+  clearTimeout(nextT);
+  const n = nextNotif(now);
+  if (n && n.at - now < 10 * 60e3) nextT = setTimeout(tickNotifs, Math.max(200, n.at - now + 120));
+}
+function onWake() {
+  if (!document.hidden) {
+    document.title = unread() ? `(${unread()}) 수행 내비` : '수행 내비';
+    banners.filter(b => b.pending).forEach(b => { b.pending = false; dismissLater(b); });
+  }
+  if (Date.now() - lastTick > 3000) tickNotifs();
+}
+document.addEventListener('visibilitychange', onWake);
+addEventListener('focus', onWake);
+addEventListener('pageshow', onWake);
+addEventListener('online', onWake);
 const unread = () => state.inbox.filter(n => !n.read).length;
 function bellBtn(small) {
   const n = unread();
@@ -128,7 +172,7 @@ SHEETS.notif = sh => {
       ${tab === 'inbox' && state.inbox.length ? '<button class="btn btn-soft btn-sm" data-act="notiClear">모두 지우기</button>' : ''}</div>
     ${state.notif.on ? '' : '<p class="err">알림이 꺼져 있어요. 설정에서 켤 수 있어요.</p>'}
     ${body}
-    <p class="tiny faint">수행 내비가 열려 있는 동안 화면 위에 알려 줘요. 휴대폰 잠금 화면 알림은 보내지 않아요.</p>`, side: true };
+    <p class="tiny faint">수행 내비가 열려 있는 동안 정시에 화면 위로 알려 주고, 닫혀 있던 사이에 놓친 알림은 다시 열 때 모아서 알려 줘요.</p>`, side: true };
 };
 
 /* ---------- settings section ---------- */
@@ -138,7 +182,11 @@ function sw(key, on, label, desc) {
 function notifSettingsHtml() {
   const N = state.notif;
   const stepOpts = [[-1, '끄기'], [0, '시작할 때'], [5, '5분 전'], [10, '10분 전'], [15, '15분 전'], [30, '30분 전']];
-  return `<div class="group">
+  const nx = N.on ? nextNotif(Date.now()) : null;
+  const sysState = (() => { try { return 'Notification' in window ? Notification.permission : 'none'; } catch (e) { return 'none'; } })();
+  return `<div class="cell pad noti-status">${logoMark(34)}<div style="flex:1;min-width:0"><span class="eyebrow">${N.on ? '알림 켜짐' : '알림 꺼짐'}</span>
+      <b>${nx ? `다음 알림 · ${when(nx.at)}` : N.on ? '이틀 안에 예정된 알림이 없어요' : '알림을 켜면 계획과 마감을 정시에 알려 줘요'}</b>${nx ? `<small>${esc(nx.title)}</small>` : ''}</div>${N.on ? `<span class="chip green">정시 알림</span>` : ''}</div>
+  <div class="group">
     ${sw('on', N.on, '알림 받기', '아래 알림을 한꺼번에 켜고 꺼요')}
     ${N.on ? `
     <div class="gi"><div style="flex:1"><b>수행 계획 시작</b><div class="small faint">역산 플래너가 넣은 작업을 미리 알려 줘요</div></div><select class="input" style="width:auto" id="noti-step" data-noti="step">${stepOpts.map(([v, l]) => `<option value="${v}" ${N.step === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -149,10 +197,11 @@ function notifSettingsHtml() {
     ${sw('crunch', N.crunch, '몰림 경보', '수행평가 3개 이상 몰린 주를 2주 전에')}
     ${sw('quiet', N.quiet, '방해 금지 시간', '이 시간에는 화면 배너 없이 알림함에만 쌓여요')}
     ${N.quiet ? `<div class="gi"><span style="flex:1" class="small muted">방해 금지</span><input class="input" style="width:auto" type="time" id="noti-qs" data-noti="quietStart" value="${hm(N.quietStart)}"><span class="faint">–</span><input class="input" style="width:auto" type="time" id="noti-qe" data-noti="quietEnd" value="${hm(N.quietEnd)}"></div>` : ''}
-    ${sw('sound', N.sound, '알림음', '배너가 뜰 때 짧게 울려요')}` : ''}
+    ${sw('sound', N.sound, '알림음 · 진동', '배너가 뜰 때 짧게 울리고, 휴대폰은 진동해요')}
+    <div class="gi"><div style="flex:1;min-width:0"><b>기기 알림</b><div class="small faint">${sysState === 'granted' ? '다른 탭을 보고 있어도 브라우저 알림으로 알려 줘요' : sysState === 'denied' || sysState === 'none' ? '이 화면에서는 브라우저 알림이 막혀 있어요. 화면 배너와 알림함으로 알려 줘요' : '다른 탭을 보고 있을 때 브라우저 알림으로 알려 줘요'}</div></div><button class="sw" role="switch" aria-checked="${!!(N.system && sysState === 'granted')}" data-act="notiSystem" aria-label="기기 알림" ${sysState === 'denied' || sysState === 'none' ? 'disabled' : ''}></button></div>` : ''}
     <div class="gi"><div style="flex:1"><b>테스트 알림</b><div class="small faint">지금 화면 위에 알림을 하나 띄워 봐요</div></div><button class="btn btn-line btn-sm" data-act="notiTest">${icon('bell')}보내기</button></div>
   </div>
-  <p class="small faint">수행 내비가 열려 있는 동안 화면 위에 알려 주고, 놓친 알림은 알림함에 모아 둬요. 휴대폰 잠금 화면 알림은 보내지 않아요.</p>`;
+  <p class="small faint">수행 내비가 열려 있는 동안 정시에 알려 줘요. 마감·몰림 경보·일정 배너는 닫을 때까지 남아 있고, 닫혀 있던 사이 놓친 알림은 다시 열 때 한 번에 모아 알려 줘요. 휴대폰 잠금 화면 알림은 앱 설치형 버전에서 지원할 수 있어요.</p>`;
 }
 
 /* ---------- handlers ---------- */
@@ -164,6 +213,7 @@ const NOTI_H = {
     const n = state.inbox.find(x => x.id === id) || banners.find(x => x.id === id) || notifPlan(today(), addDays(today(), 2)).find(x => x.id === id);
     const bi = banners.findIndex(b => b.id === id); if (bi >= 0) { banners.splice(bi, 1); renderBanners(); }
     if (!n || !n.act) { sheet = null; render(); return; }
+    if (n.act.type === 'inbox') { NOTI_H.notiCenter(); return; }
     sheet = null;
     if (n.act.type === 'card' && find(n.act.arg)) { state.detail = n.act.arg; state.detailTab = 'plan'; render(); goTop(); return; }
     if (n.act.type === 'cal') { state.view = 'calendar'; state.detail = null; state.cal.date = n.act.arg; state.cal.view = 'day'; calScroll = null; save(); render(); goTop(); return; }
@@ -175,6 +225,13 @@ const NOTI_H = {
   },
   bannerClose(id) { const i = banners.findIndex(b => b.id === id); if (i >= 0) { banners.splice(i, 1); renderBanners(); } },
   notiSet(k) { state.notif[k] = !state.notif[k]; save(); render(); },
+  async notiSystem() {
+    if (state.notif.system && sysOK()) { state.notif.system = false; save(); render(); return; }
+    let p = 'denied';
+    try { p = await Notification.requestPermission(); } catch (e) { p = 'denied'; }
+    state.notif.system = p === 'granted'; save(); render();
+    toast(p === 'granted' ? '기기 알림을 켰어요' : '이 화면에서는 기기 알림이 막혀 있어요. 화면 배너로 알려 줄게요');
+  },
   notiTest() {
     const n = { id: 'test:' + Date.now(), at: Date.now(), kind: 'test', title: '테스트 알림이에요', body: '수행 계획과 마감이 다가오면 이렇게 알려 줘요.', act: { type: 'view', arg: 'today' } };
     deliver(n, true); save(); renderShell();

@@ -38,7 +38,7 @@ function taskRow(b) {
     <input type="checkbox" class="ck" data-act="toggleStep" data-arg="${a.id}:${b.step}" ${s.done ? 'checked' : ''} aria-label="${esc(s.name)} 완료">
     <span class="tp">${hm(b.start)}–${hm(b.end)}</span>
     <div class="task-t"><b>${esc(s.name)}${b.parts > 1 ? ` <span class="faint">(${b.part}/${b.parts})</span>` : ''}</b><small>${esc(a.subject)} · ${esc(a.title)} · ${esc(s.check)}</small></div>
-    <button class="btn btn-soft btn-icon btn-sm" data-act="open" data-arg="${a.id}" aria-label="${esc(a.title)} 열기">${icon('next')}</button>
+    <span class="row" style="flex-wrap:nowrap">${has('focus') && !s.done ? `<button class="btn btn-soft btn-icon btn-sm" data-act="focusStart" data-arg="${a.id}:${b.step}" aria-label="${esc(s.name)} 타이머로 시작" title="포커스 타이머">${icon('clock')}</button>` : ''}<button class="btn btn-soft btn-icon btn-sm" data-act="open" data-arg="${a.id}" aria-label="${esc(a.title)} 열기">${icon('next')}</button></span>
   </div>`;
 }
 function crunchAlerts(compact) {
@@ -49,6 +49,7 @@ function crunchAlerts(compact) {
       <span class="a-ico">${icon('flame')}</span>
       <div><h3>몰림 경보 · ${mdShort(w.monday)} 주에 수행평가 ${w.cards.length}개</h3>
         <p>첫 마감까지 ${first}일 남았어요. 몰린 주는 여유 시간을 2배로 잡아서 미리 시작하게 계획했어요.</p>
+        ${!compact && has('priority') ? `<div class="row" style="margin-top:10px"><button class="btn btn-pri btn-sm" data-act="priority" data-arg="${w.monday}">${icon('flame')}AI와 우선순위 정하기</button></div>` : ''}
         ${compact ? '' : `<div class="starts">${w.cards.map(a => { const p = PLANS[a.id]; return `<button class="chip hue" style="${hueVar(a.subject)};background:var(--card);color:var(--ink);border:0;cursor:pointer" data-act="open" data-arg="${a.id}">${esc(a.subject)} · ${p && p.start ? md(p.start) + ' 시작' : a.steps.length ? '완료' : '단계 나누기 전'}</button>`; }).join('')}</div>`}
       </div></div>`;
   }).join('');
@@ -97,7 +98,7 @@ function viewToday() {
     todayBody = `<div class="cell dash empty">${emptyArt()}<b>오늘은 계획된 수행 작업이 없어요</b>${nx ? `<p class="small muted">다음 일정 · <b class="num">${md(nx.date)} ${hm(nx.start)}</b> ${esc(find(nx.aid).subject)} ${esc(stepOf(nx).name)}</p>` : '<p class="small muted">수행 카드에서 단계를 나누면 빈 시간에 계획이 생겨요.</p>'}</div>`;
   }
   return {
-    title: '오늘', sub: mdLong(t),
+    title: '투데이', sub: mdLong(t),
     actions: `<button class="btn btn-sun" data-act="go" data-arg="capture">${icon('camera')}새 수행 카드</button>`,
     body: `
     <section class="hero rise">
@@ -110,6 +111,7 @@ function viewToday() {
     </section>
     ${crunchAlerts(false)}
     <section class="sec"><div class="sec-h"><h2><span class="ico hue" style="--h:44">${icon('sun')}</span>오늘 할 일</h2>${blocks.length ? `<span class="chip">${blocks.length - left}/${blocks.length} 완료</span>` : ''}</div>${todayBody}</section>
+    ${has('cards') && state.study.cards.some(c => diffDays(c.due, t) >= 0) ? `<div class="alert-card soft"><span class="a-ico">${icon('board')}</span><div><h3>오늘 복습할 카드 ${state.study.cards.filter(c => diffDays(c.due, t) >= 0).length}장</h3><p>잊을 때쯤 다시 보는 게 가장 오래 남아요.</p><div class="row" style="margin-top:10px"><button class="btn btn-pri btn-sm" data-act="goStudy" data-arg="cards">복습하러 가기</button></div></div></div>` : ''}
     ${todaySchedule()}
     <section class="sec"><div class="sec-h"><h2><span class="ico hue" style="--h:152">${icon('calendar')}</span>이번 주</h2><button class="btn btn-soft btn-sm" data-act="calWeek">캘린더 ${icon('next')}</button></div>${weekDots()}</section>
     <section class="sec"><div class="sec-h"><h2><span class="ico hue" style="--h:214">${icon('flag')}</span>다가오는 마감</h2><button class="btn btn-soft btn-sm" data-act="go" data-arg="board">보드 전체 ${icon('next')}</button></div>
@@ -152,7 +154,7 @@ function viewBoard() {
   const segBtn = (v, l) => `<button data-act="boardFilter" data-arg="${v}" aria-pressed="${f === v}">${l}</button>`;
   const openCount = state.cards.filter(a => a.due && diffDays(t, a.due) >= 0 && !allDone(a)).length;
   return {
-    title: '수행 보드', sub: `진행 중 ${openCount}개 · 날짜순으로 모았어요`,
+    title: '수행 카드함', sub: `진행 중 ${openCount}개 · 날짜순으로 모았어요`,
     actions: `<button class="btn btn-sun" data-act="go" data-arg="capture">${icon('camera')}새 수행 카드</button>`,
     body: `
     <div class="row-sb"><div class="seg" role="group" aria-label="보기">${segBtn('open', '진행 중')}${segBtn('done', '완료')}${segBtn('past', '지난 것')}${segBtn('all', '전체')}</div>
@@ -254,16 +256,52 @@ const cardDrafts = {};
 function viewDetail(a) {
   const tab = state.detailTab;
   const segBtn = (v, l, ico) => `<button data-act="detailTab" data-arg="${v}" aria-pressed="${tab === v}">${l}</button>`;
-  const body = tab === 'plan' ? tabPlan(a) : tab === 'coach' ? tabCoach(a) : tabCheck(a);
+  const tools = has('focus') || has('selfcheck') || has('questions') || has('whatif');
+  const body = tab === 'plan' ? tabPlan(a) : tab === 'coach' ? tabCoach(a) : tab === 'tools' && tools ? tabTools(a) : tabCheck(a);
   return {
     title: esc(a.title), sub: `${esc(a.subject)} · ${mdMid(a.due)} 마감`,
     actions: `<button class="btn btn-soft btn-sm" data-act="startEdit" data-arg="${a.id}">${icon('edit')}고치기</button><button class="btn btn-danger btn-sm" data-act="del" data-arg="${a.id}">${confirmKey === 'del:' + a.id ? '한 번 더 누르면 삭제' : icon('trash') + '삭제'}</button>`,
     body: `
-    <button class="btn btn-soft btn-sm back" data-act="back">${icon('back')}수행 보드</button>
+    <button class="btn btn-soft btn-sm back" data-act="back">${icon('back')}수행 카드함</button>
     <section class="d-hero rise">${tile(a.subject, 'l')}<div class="t"><div class="row">${tag(a.subject)}${a.type ? `<span class="chip">${esc(a.type)}</span>` : ''}${a.weight ? `<span class="chip">반영 ${esc(a.weight)}</span>` : ''}</div><h2>${esc(a.title)}</h2></div>${ddayBadge(a)}</section>
     <div class="d-grid">
       <div class="stack">${cardTable(a)}</div>
-      <div class="stack"><div class="seg" role="group" aria-label="수행 카드 도구">${segBtn('check', '기준 체크리스트')}${segBtn('plan', '역산 계획')}${segBtn('coach', '코칭')}</div>${body}</div>
+      <div class="stack"><div class="seg" role="group" aria-label="수행 카드 도구">${segBtn('check', '기준 체크리스트')}${segBtn('plan', '역산 계획')}${segBtn('coach', '코칭')}${tools ? segBtn('tools', '멤버십 도구') : ''}</div>${body}</div>
     </div>`
   };
+}
+
+/* ---------- member tools inside a card (shown only to members) ---------- */
+const whatifDates = {};
+function tabTools(a) {
+  const out = [];
+  if (has('focus')) {
+    const left = a.steps.map((s, i) => ({ s, i })).filter(x => !x.s.done);
+    const pf = paceFactor();
+    out.push(`<div class="cell pad mt-sec"><h4>${icon('clock')}포커스 타이머</h4>
+      ${left.length ? left.map(({ s, i }) => `<div class="step-play"><span>${esc(s.name)} <small class="faint">${s.minutes}분</small></span><button class="btn btn-pri btn-sm" data-act="focusStart" data-arg="${a.id}:${i}">${icon('next')}시작</button></div>`).join('') : '<p class="small faint">남은 단계가 없어요.</p>'}
+      ${has('pace') ? `<p class="small faint">${pf === 1 ? '타이머 기록이 3번 쌓이면 내 속도에 맞춰 계획 시간을 자동으로 보정해요.' : `내 속도에 맞춰 계획 시간을 ${Math.round((pf - 1) * 100) > 0 ? '+' : ''}${Math.round((pf - 1) * 100)}% 보정하고 있어요.`}</p>` : ''}</div>`);
+  }
+  if (has('selfcheck')) {
+    const sc = a.selfcheck || {}, key = 'selfcheck:' + a.id, r = sc.result;
+    const cls = { '충족': 'full', '부분': 'part', '부족': 'low' };
+    out.push(`<div class="cell pad mt-sec"><h4>${icon('list')}루브릭 셀프 채점</h4><p class="small muted">내가 쓴 초안을 붙여넣으면 기준별로 얼마나 채웠는지 봐요. 문장을 고쳐 주지 않고, 빠진 점은 질문으로만 짚어요.</p>
+      <textarea class="input" id="sc-${a.id}" data-sc="${a.id}" rows="5" placeholder="내 초안 붙여넣기">${esc(sc.draft || '')}</textarea>
+      <div class="row-end">${aiBtn(key, '셀프 채점', 'selfCheck', a.id, 'btn-pri btn-sm')}</div>${aiNote()}${busyRow(key)}${errRow(key)}
+      ${r ? `${r.criteria.map(c => `<div class="sc-row"><span class="lvl ${cls[c.level]}">${c.level}</span><b class="small">${esc(c.original)}</b>${c.evidence ? `<q>${esc(c.evidence)}</q>` : ''}${c.missing ? `<span class="small">${esc(c.missing)}</span>` : ''}</div>`).join('')}${r.overall ? `<div class="explain">${logoMark(18)}<span>${esc(r.overall)}</span></div>` : ''}` : ''}</div>`);
+  }
+  if (has('questions')) {
+    const ex = a.expect || {}, key = 'questions:' + a.id;
+    out.push(`<div class="cell pad mt-sec"><h4>${icon('chat')}예상 질문 연습</h4><p class="small muted">선생님이 물어볼 만한 질문을 미리 뽑아요. 답은 내가 준비해요.</p>
+      <textarea class="input" id="xq-${a.id}" data-xq="${a.id}" rows="3" placeholder="준비한 내용 메모 (선택)">${esc(ex.memo || '')}</textarea>
+      <div class="row-end">${aiBtn(key, '질문 뽑기', 'expectQ', a.id, 'btn-pri btn-sm')}</div>${busyRow(key)}${errRow(key)}
+      ${(ex.result || []).map((q, i) => `<div class="sc-row"><b>Q${i + 1}. ${esc(q.q)}</b><span class="small faint">${esc(q.why)}</span><span class="small">준비: ${esc(q.prep)}</span></div>`).join('')}</div>`);
+  }
+  if (has('whatif')) {
+    const d = whatifDates[a.id] || a.due, r = d !== a.due ? whatIf(a, d) : null;
+    out.push(`<div class="cell pad mt-sec"><h4>${icon('calendar')}마감 시뮬레이터</h4><p class="small muted">마감이 바뀌면 시작일과 몰림 경보가 어떻게 달라지는지 저장하기 전에 봐요.</p>
+      <div class="row"><input class="input" style="width:auto" type="date" id="wi-${a.id}" data-wi="${a.id}" value="${d}"><span class="small faint">지금 마감 ${md(a.due)}</span></div>
+      ${r ? `<div class="sc-row"><b>${md(d)}로 바뀌면</b><span class="small">시작일 ${r.curStart ? md(r.curStart) : '—'} → <b>${r.start ? md(r.start) : '계획 없음'}</b>${r.tight ? ' · 빠듯해요' : ''}</span><span class="small">${r.crunch ? `⚠ 그 주에 수행평가가 ${r.crunch}개 몰려요` : '그 주는 몰리지 않아요'}</span><div class="row-end"><button class="btn btn-line btn-sm" data-act="whatifApply" data-arg="${a.id}">이 날짜로 마감 바꾸기</button></div></div>` : ''}</div>`);
+  }
+  return out.join('');
 }
