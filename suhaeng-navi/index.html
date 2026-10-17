@@ -1,0 +1,58 @@
+<title>수행 내비</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Nunito:wght@700;800;900&display=swap">
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="views.css">
+
+<div class="ambient" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
+<div class="app">
+  <aside class="side" aria-label="메뉴">
+    <div class="side-in glass">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#1B2337" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.4" fill="#fff"/><path d="M8.2 17h6.3a3 3 0 0 0 0-6h-5a3 3 0 0 1 0-6h6.3"/><rect x="16" y="3.4" width="5" height="5" rx="1.4" fill="#1B2337"/></svg></span>
+        <div><b>수행 내비</b><small>LG AI 청소년 캠프</small></div>
+      </div>
+      <button class="btn btn-pri new-btn" data-act="go" data-arg="capture"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8L10 3.8h4L15.7 6h1.8A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.3" r="3.4"/></svg>새 수행 카드</button>
+      <nav class="nav" id="nav"></nav>
+      <div class="side-foot" id="side-foot"></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar glass" data-lens="1">
+      <div class="tb-title" id="tb-title"></div>
+      <div class="tb-actions" id="tb-actions"></div>
+    </header>
+    <div class="view" id="view" aria-live="polite"></div>
+  </main>
+</div>
+
+<header class="mtop glass" data-lens="2">
+  <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#1B2337" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.4" fill="#fff"/><path d="M8.2 17h6.3a3 3 0 0 0 0-6h-5a3 3 0 0 1 0-6h6.3"/><rect x="16" y="3.4" width="5" height="5" rx="1.4" fill="#1B2337"/></svg></span>
+  <h1 id="m-title">수행 내비</h1>
+  <span class="ai-pill" id="m-ai"></span>
+  <button class="btn btn-soft btn-icon btn-sm" data-act="go" data-arg="settings" aria-label="나의 설정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5l1.6 1.2-1.8 3.2-1.9-.7a7 7 0 0 1-1.8 1l-.3 2h-3.6l-.3-2a7 7 0 0 1-1.8-1l-1.9.7-1.8-3.2 1.6-1.2a7 7 0 0 1 0-3l-1.6-1.2 1.8-3.2 1.9.7a7 7 0 0 1 1.8-1l.3-2h3.6l.3 2a7 7 0 0 1 1.8 1l1.9-.7 1.8 3.2-1.6 1.2a7 7 0 0 1 0 3z"/></svg></button>
+</header>
+
+<nav class="mtab glass" data-lens="3" aria-label="탭">
+  <button class="mt-item" data-act="go" data-arg="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/></svg>오늘</button>
+  <button class="mt-item" data-act="go" data-arg="board"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4" width="7" height="7" rx="2.2"/><rect x="13.5" y="4" width="7" height="7" rx="2.2"/><rect x="3.5" y="14" width="7" height="6" rx="2.2"/><rect x="13.5" y="14" width="7" height="6" rx="2.2"/></svg>보드</button>
+  <button class="mt-fab" data-act="go" data-arg="capture" aria-label="새 수행 카드"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8L10 3.8h4L15.7 6h1.8A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.3" r="3.4"/></svg></button>
+  <button class="mt-item" data-act="go" data-arg="week"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="4"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>계획</button>
+  <button class="mt-item" data-act="go" data-arg="more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>더 보기</button>
+</nav>
+
+<div id="sheet-root"></div>
+<div class="toast glass" id="toast" role="status" aria-live="polite"></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="lens-defs"></defs></svg>
+
+<script src="core.js"></script>
+<script src="ai.js"></script>
+<script src="ui.js"></script>
+<script src="views1.js"></script>
+<script src="views2.js"></script>
+<script src="views3.js"></script>
+<script src="main.js"></script>
