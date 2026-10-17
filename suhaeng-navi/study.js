@@ -170,7 +170,7 @@ function runnerHtml(set) {
   const res = run.result;
   const summary = done && res ? `<div class="result cell pad-l">${ring(res.score / res.total, set.subject, '점수')}<div style="flex:1;min-width:0"><b class="num" style="font-size:26px">${res.score} / ${res.total}</b><p class="small muted">${res.score === res.total ? '모두 맞았어요!' : `틀린 개념: ${[...new Set(set.questions.filter(q => res.wrong.includes(q.id)).map(q => q.concept))].join(', ')}`}${run.time ? ` · ${Math.max(1, Math.round(run.time / 60000))}분 걸림` : ''}</p></div>
       ${busyRow('rewind')}${errRow('rewind')}<div class="row">${res.wrong.length && has('rewind') && !busy.rewind ? `<button class="btn btn-pri btn-sm" data-act="rewind" data-arg="${set.id}">${icon('route')}오답 되감기</button>` : ''}${res.wrong.length && has('cards') ? `<button class="btn btn-line btn-sm" data-act="toCards" data-arg="${set.id}">${icon('board')}오답 카드로</button>` : ''}<button class="btn btn-soft btn-sm" data-act="runRetry">다시 풀기</button></div></div>${busyRow('rewind')}${errRow('rewind')}` : '';
-  const timer = exam && run.endAt && !done ? `<div class="exam-bar glass" id="exam-bar"><span>${icon('clock')}남은 시간 <b class="num" id="exam-left">--:--</b></span><span class="small">${answered}/${set.questions.length} 답함</span><button class="btn btn-pri btn-sm" data-act="runSubmit">제출</button></div>` : '';
+  const timer = exam && run.endAt && !done ? `<div class="exam-bar glass" id="exam-bar"><span>${icon('clock')}남은 시간 <b class="num" id="exam-left" data-keep>--:--</b></span><span class="small">${answered}/${set.questions.length} 답함</span><button class="btn btn-pri btn-sm" data-act="runSubmit">제출</button></div>` : '';
   const omr = exam && run.endAt && !done ? `<aside class="omr cell"><b class="small">OMR 답안지</b>${set.questions.map((q, i) => `<a class="omr-row" href="#q-${i + 1}"><span class="num">${i + 1}</span>${q.type === 'mc' ? q.choices.map((c, j) => `<i class="${+run.answers[q.id] === j && run.answers[q.id] !== undefined ? 'on' : ''}">${j + 1}</i>`).join('') : `<em>${esc(run.answers[q.id] || '—')}</em>`}</a>`).join('')}</aside>` : '';
   return `<button class="btn btn-soft btn-sm back" data-act="setClose">${icon('back')}시험지 목록</button>
     <div class="row-sb"><div><h2 class="st-title">${esc(set.title)}</h2><p class="small faint">${tag(set.subject)} ${set.questions.length}문항${best != null ? ` · 최고 ${best}점` : ''}${set.example ? ' · 예시' : ''}</p></div>${done ? '' : seg}</div>
@@ -268,7 +268,7 @@ function viewStudy() {
     body: `<section class="hero study-hero rise"><div><div class="eyebrow">STUDY LAB</div><h2>교과서로 <em>모의 시험지</em>를 만들어요</h2><p>넣은 자료 안에서만 출제하고, 채점과 해설은 바로 보여 줘요.</p>
         <div class="hero-stats"><span>시험지 <b>${state.study.sets.length}</b>개</span><span>평균 정답률 <b>${avg != null ? avg + '%' : '—'}</b></span>${has('cards') ? `<span>오늘 복습 <b>${dueCards}</b>장</span>` : ''}</div></div>${logoMark(92, 'hero-logo')}</section>
       <div class="seg" data-seg="study" role="group" aria-label="스터디 랩">${tabs.map(([k, l]) => `<button data-act="studyTab" data-arg="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>
-      ${body}`,
+      <div class="swap" data-swap="${tab}">${body}</div>`,
     after() { if (run && run.endAt && !run.submitted) examTick(); }
   };
 }

@@ -1,7 +1,7 @@
 /* 수행 내비 — view styles (all content cells are opaque; glass stays on chrome) */
 
 /* today */
-.hero{position:relative;overflow:hidden;border-radius:var(--r-panel);background:#1B2337;color:#fff;padding:26px 26px 24px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center}
+.hero{position:relative;overflow:hidden;border-radius:var(--r-panel);background:linear-gradient(135deg,var(--hero) 45%,var(--hero-2));color:#fff;padding:26px 26px 24px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center}
 .hero::after{content:"";position:absolute;right:-60px;top:-80px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(245,213,96,.35),transparent 65%);pointer-events:none}
 .hero .eyebrow{color:#F5D560;font-size:13px;font-weight:800}
 .hero h2{font-size:28px;font-weight:900;margin-top:6px;letter-spacing:-.03em}
@@ -216,7 +216,7 @@ tr:last-child td{border-bottom:0}
 .opt small{font-size:12.5px;color:var(--ink-3)}
 .opt[aria-pressed="true"]{box-shadow:0 0 0 2.5px var(--blue)}
 .opt[aria-pressed="true"] b::after{content:"";margin-left:auto;width:20px;height:20px;border-radius:50%;background:var(--blue) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center/13px no-repeat}
-.lock-card{display:flex;gap:14px;align-items:center;padding:18px 20px;border-radius:var(--r-card);background:#1B2337;color:#fff}
+.lock-card{display:flex;gap:14px;align-items:center;padding:18px 20px;border-radius:var(--r-card);background:var(--hero);color:#fff}
 .lock-card svg{width:28px;height:28px;color:#F5D560;flex:none}
 .lock-card b{font-size:15px}
 .lock-card p{font-size:13px;color:rgba(255,255,255,.7);margin-top:2px}

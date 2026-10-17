@@ -99,7 +99,7 @@ function viewToday() {
   }
   return {
     title: '투데이', sub: mdLong(t),
-    actions: `<button class="btn btn-sun" data-act="go" data-arg="capture">${icon('camera')}새 수행 카드</button>`,
+    actions: `<button class="btn btn-sun" data-act="go" data-arg="capture">${icon('camera')}공지 스캔</button>`,
     body: `
     <section class="hero rise">
       <div><div class="eyebrow">${mdLong(t)}</div>
@@ -155,7 +155,7 @@ function viewBoard() {
   const openCount = state.cards.filter(a => a.due && diffDays(t, a.due) >= 0 && !allDone(a)).length;
   return {
     title: '수행 카드함', sub: `진행 중 ${openCount}개 · 날짜순으로 모았어요`,
-    actions: `<button class="btn btn-sun" data-act="go" data-arg="capture">${icon('camera')}새 수행 카드</button>`,
+    actions: `<button class="btn btn-sun" data-act="go" data-arg="capture">${icon('camera')}공지 스캔</button>`,
     body: `
     <div class="row-sb"><div class="seg" role="group" aria-label="보기">${segBtn('open', '진행 중')}${segBtn('done', '완료')}${segBtn('past', '지난 것')}${segBtn('all', '전체')}</div>
       ${state.cards.some(a => a.example) ? `<button class="btn btn-soft btn-sm" data-act="clearExamples">예시 카드 지우기</button>` : ''}</div>
@@ -164,7 +164,7 @@ function viewBoard() {
       const n = (wc[g.k] || []).length;
       return `<section class="sec"><div class="week-h"><h3>${label(g.k)}</h3><span class="chip num">${mdShort(g.k)}–${mdShort(addDays(g.k, 6))}</span>${n >= 3 ? `<span class="chip orange">${icon('flame')}몰림 ${n}개</span>` : n === 2 ? '<span class="chip sun">2개 겹침</span>' : ''}</div>
         <div class="cards">${g.items.map(scard).join('')}</div></section>`;
-    }).join('') : `<div class="cell dash empty">${emptyArt()}<b>${f === 'done' ? '아직 끝낸 수행평가가 없어요' : f === 'past' ? '지난 수행평가가 없어요' : '보여 줄 수행 카드가 없어요'}</b><p class="small muted">공지 사진 한 장이면 수행 카드가 만들어져요.</p><button class="btn btn-pri btn-sm" data-act="go" data-arg="capture">${icon('camera')}새 수행 카드</button></div>`}`
+    }).join('') : `<div class="cell dash empty">${emptyArt()}<b>${f === 'done' ? '아직 끝낸 수행평가가 없어요' : f === 'past' ? '지난 수행평가가 없어요' : '보여 줄 수행 카드가 없어요'}</b><p class="small muted">공지 사진 한 장이면 수행 카드가 만들어져요.</p><button class="btn btn-pri btn-sm" data-act="go" data-arg="capture">${icon('camera')}공지 스캔</button></div>`}`
   };
 }
 
@@ -266,7 +266,7 @@ function viewDetail(a) {
     <section class="d-hero rise">${tile(a.subject, 'l')}<div class="t"><div class="row">${tag(a.subject)}${a.type ? `<span class="chip">${esc(a.type)}</span>` : ''}${a.weight ? `<span class="chip">반영 ${esc(a.weight)}</span>` : ''}</div><h2>${esc(a.title)}</h2></div>${ddayBadge(a)}</section>
     <div class="d-grid">
       <div class="stack">${cardTable(a)}</div>
-      <div class="stack"><div class="seg" role="group" aria-label="수행 카드 도구">${segBtn('check', '기준 체크리스트')}${segBtn('plan', '역산 계획')}${segBtn('coach', '코칭')}${tools ? segBtn('tools', '멤버십 도구') : ''}</div>${body}</div>
+      <div class="stack"><div class="seg" role="group" aria-label="수행 카드 도구">${segBtn('check', '기준 체크리스트')}${segBtn('plan', '역산 계획')}${segBtn('coach', '코칭')}${tools ? segBtn('tools', '멤버십 도구') : ''}</div><div class="swap" data-swap="${tab}">${body}</div></div>
     </div>`
   };
 }

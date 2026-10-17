@@ -178,7 +178,7 @@ function viewCalendar() {
             <button class="btn btn-soft btn-icon btn-sm cal-panel-btn" data-act="calPanel" aria-label="캘린더 목록">${icon('list')}</button></div>
         </div>
         <div class="quick"><span class="q-ico">${icon('spark')}</span><input id="quick-in" data-bind="quick" placeholder="빠른 추가 · 예: 내일 오후 4시 치과 1시간" value="${esc(quickText)}" aria-label="빠른 추가"><span class="q-prev" id="q-prev">${qp}</span><button class="btn btn-pri btn-sm" data-act="quickAdd">추가</button></div>
-        ${body}
+        <div class="swap" data-swap="${v}:${state.cal.date}">${body}</div>
       </section></div>`,
     after() {
       const sc = document.getElementById('tg-scroll');

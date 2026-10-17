@@ -52,7 +52,7 @@ function ring(pct, subject, label) {
 const BUSY_LABEL = { read: 'AI가 공지를 읽는 중', rubric: '채점 기준을 푸는 중', steps: '단계를 나누는 중', coach: '답을 쓰는 중', chat: '답을 쓰는 중', cheer: '응원 메시지를 쓰는 중', timetable: '시간표를 읽는 중',
   quiz: '시험지를 만드는 중', rewind: '변형 문제를 만드는 중', map: '개념 지도를 그리는 중', d30: '시험 플랜을 짜는 중', selfcheck: '기준별로 점검하는 중', questions: '예상 질문을 뽑는 중', weekly: '한 주를 돌아보는 중', priority: '순서를 정하는 중' };
 const busyRow = key => busy[key]
-  ? `<div class="busy">${logoMark(22, 'pulse')}<span>${BUSY_LABEL[key.split(':')[0]]} · <span class="num" data-elapsed="${esc(key)}">0</span>초</span><button class="btn btn-line btn-sm" data-act="stop" data-arg="${esc(key)}">${icon('stop')}멈추기</button></div>` : '';
+  ? `<div class="busy">${logoMark(22, 'pulse')}<span>${BUSY_LABEL[key.split(':')[0]]} · <span class="num" data-keep data-elapsed="${esc(key)}">0</span>초</span><button class="btn btn-line btn-sm" data-act="stop" data-arg="${esc(key)}">${icon('stop')}멈추기</button></div>` : '';
 const errRow = key => (errors[key] ? `<p class="err">${esc(errors[key])}</p>` : '');
 const aiNote = () => (aiReady() ? '' : `<p class="small faint">${esc(aiOffText())}</p>`);
 function aiBtn(key, label, act, arg, cls, ico) {
@@ -96,18 +96,18 @@ function renderShell() {
   const cur = currentNav();
   const rail = railOn();
   document.body.classList.toggle('rail', rail);
-  $('#nav').innerHTML = NAV.map(g => `<div class="nav-group"><div class="nav-label">${g.group}</div>${g.items.map(it =>
-    `<button class="nav-item" data-act="go" data-arg="${it.id}" ${cur === it.id ? 'aria-current="page"' : ''} title="${it.label}"><span class="ni-ico hue" style="--h:${it.h}">${icon(it.icon)}</span><span class="ni-text">${it.label}</span>${navBadge(it.id)}</button>`).join('')}</div>`).join('');
+  morph($('#nav'), NAV.map(g => `<div class="nav-group"><div class="nav-label">${g.group}</div>${g.items.map(it =>
+    `<button class="nav-item" data-act="go" data-arg="${it.id}" ${cur === it.id ? 'aria-current="page"' : ''} title="${it.label}"><span class="ni-ico hue" style="--h:${it.h}">${icon(it.icon)}</span><span class="ni-text">${it.label}</span>${navBadge(it.id)}</button>`).join('')}</div>`).join(''));
   const pill = { pending: 'AI 확인 중', ready: 'AI 연결됨', off: 'AI 없음 · 예시 모드', denied: 'AI 꺼짐' }[aiState];
-  $('#side-foot').innerHTML = `<div class="row-sb side-meta"><span class="ai-pill ${aiState}" title="${pill}"><i></i><span class="ap-t">${pill}</span></span>${innerWidth >= 1200 ? `<button class="btn btn-soft btn-icon btn-sm" data-act="railToggle" aria-label="${rail ? '사이드바 펼치기' : '사이드바 접기'}" title="${rail ? '펼치기' : '접기'}">${icon(rail ? 'next' : 'back')}</button>` : ''}</div>
-    <button class="me" data-act="go" data-arg="settings" ${cur === 'settings' ? 'aria-current="page"' : ''} title="설정"><span class="avatar">${esc((state.settings.name || '나').slice(0, 1))}</span><span class="me-t"><b>${esc(state.settings.name || '나')}${state.plan !== 'air' ? ` <span class="plan-badge">${TIERS[state.plan].name}</span>` : ''}</b><small>${esc(state.settings.grade || '설정')}</small></span>${icon('gear')}</button>`;
+  morph($('#side-foot'), `<div class="row-sb side-meta"><span class="ai-pill ${aiState}" title="${pill}"><i></i><span class="ap-t">${pill}</span></span>${innerWidth >= 1200 ? `<button class="btn btn-soft btn-icon btn-sm" data-act="railToggle" aria-label="${rail ? '사이드바 펼치기' : '사이드바 접기'}" title="${rail ? '펼치기' : '접기'}">${icon(rail ? 'next' : 'back')}</button>` : ''}</div>
+    <button class="me" data-act="go" data-arg="settings" ${cur === 'settings' ? 'aria-current="page"' : ''} title="설정"><span class="avatar">${esc((state.settings.name || '나').slice(0, 1))}</span><span class="me-t"><b>${esc(state.settings.name || '나')}${state.plan !== 'air' ? ` <span class="plan-badge">${TIERS[state.plan].name}</span>` : ''}</b><small>${esc(state.settings.grade || '설정')}</small></span>${icon('gear')}</button>`);
   document.querySelectorAll('.mt-item').forEach(b => {
     const on = b.dataset.arg === cur || (b.dataset.arg === 'more' && !['today', 'board', 'calendar', 'capture'].includes(cur));
     if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
-  document.title = unread() ? `(${unread()}) 수행 내비` : '수행 내비';
-  $('#tb-bell').innerHTML = bellBtn(false);
-  $('#m-bell').innerHTML = bellBtn(true);
+  if (!document.hidden) document.title = unread() ? `(${unread()}) 수행 내비` : '수행 내비';
+  morph($('#tb-bell'), bellBtn(false));
+  morph($('#m-bell'), bellBtn(true));
 }
 
 /* ---------- sheets (glass, modal) ---------- */
@@ -125,22 +125,35 @@ const SHEETS = {
       <div class="lightbox"><img data-photo="${esc(sh.id)}" alt="개인정보를 가린 공지 사진"></div><p class="small faint">이름과 학번은 저장하기 전에 가렸어요. 사진은 이 기기에만 있어요.</p>` };
   }
 };
+let sheetT = null;
 function renderSheet() {
   const root = $('#sheet-root');
-  if (!sheet || !SHEETS[sheet.kind]) { root.innerHTML = ''; lastSheet = null; return; }
+  if (!sheet || !SHEETS[sheet.kind]) {
+    lastSheet = null;
+    const cur = root.firstElementChild;
+    if (!cur) return;
+    if (!motionOn()) { root.innerHTML = ''; return; }
+    if (!cur.classList.contains('closing')) {
+      cur.classList.add('closing');
+      clearTimeout(sheetT); sheetT = setTimeout(() => { if (!sheet) root.innerHTML = ''; }, 300 * mo());
+    }
+    return;
+  }
+  clearTimeout(sheetT);
   const r = SHEETS[sheet.kind](sheet);
-  const still = lastSheet === sheet.kind ? ' still' : '';
+  const same = lastSheet === sheet.kind && root.firstElementChild && !root.firstElementChild.classList.contains('closing');
   lastSheet = sheet.kind;
+  const put = html => (same ? morph(root, html) : (root.innerHTML = html));
   if (r.pop && innerWidth >= 700 && sheet.x != null) {
     const w = Math.min(360, innerWidth - 24);
     const x = sheet.x + 14 + w > innerWidth - 12 ? Math.max(12, sheet.x - w - 14) : sheet.x + 14;
-    root.innerHTML = `<div class="scrim clear${still}" data-act="scrim"><div class="pop glass${still}" role="dialog" aria-modal="true" style="left:${x}px;top:${Math.max(12, sheet.y - 40)}px;width:${w}px">${r.html}</div></div>`;
+    put(`<div class="scrim clear" data-act="scrim"><div class="pop glass" role="dialog" aria-modal="true" style="left:${x}px;top:${Math.max(12, sheet.y - 40)}px;width:${w}px">${r.html}</div></div>`);
     const p = root.querySelector('.pop'), rect = p.getBoundingClientRect();
     if (rect.bottom > innerHeight - 12) p.style.top = Math.max(12, innerHeight - 12 - rect.height) + 'px';
     return;
   }
   const side = r.side && innerWidth >= 861;
-  root.innerHTML = `<div class="scrim${side ? ' right' : ''}${still}" data-act="scrim"><div class="sheet glass${side ? ' side-panel' : r.cls ? ' ' + r.cls : ''}${still}" role="dialog" aria-modal="true">${r.html}</div></div>`;
+  put(`<div class="scrim${side ? ' right' : ''}" data-act="scrim"><div class="sheet glass${side ? ' side-panel' : r.cls ? ' ' + r.cls : ''}" role="dialog" aria-modal="true">${r.html}</div></div>`);
 }
 
 /* ---------- render loop ---------- */
@@ -149,6 +162,8 @@ function hydratePhotos() {
     PhotoStore.url(img.dataset.photo).then(u => { if (u) img.src = u; else img.closest('.photo-btn')?.remove(); });
   });
 }
+let lastViewKey = null;
+const viewKey = () => (state.detail ? 'd:' + state.detail : state.view + (state.view === 'study' && studyOpen ? ':' + studyOpen : ''));
 function render() {
   const active = document.activeElement;
   const focusId = active && active.id ? active.id : null;
@@ -157,16 +172,20 @@ function render() {
   PLANS = buildPlans();
   if (state.detail && !find(state.detail)) state.detail = null;
   const v = state.detail ? viewDetail(find(state.detail)) : (VIEWS[state.view] || VIEWS.today)();
-  $('#view').innerHTML = v.body;
-  $('#tb-title').innerHTML = `<h1>${v.title}</h1>${v.sub ? `<p>${v.sub}</p>` : ''}`;
-  $('#tb-actions').innerHTML = v.actions || '';
-  $('#m-title').innerHTML = v.title;
+  const key = viewKey(), fresh = key !== lastViewKey || forceEnter;
+  const title = `<h1>${v.title}</h1>${v.sub ? `<p>${v.sub}</p>` : ''}`;
+  if (fresh) { $('#view').innerHTML = v.body; $('#tb-title').innerHTML = title; $('#m-title').textContent = v.title; }
+  else { morph($('#view'), v.body); morph($('#tb-title'), title); if ($('#m-title').textContent !== v.title) $('#m-title').textContent = v.title; }
+  morph($('#tb-actions'), v.actions || '');
   renderShell();
   renderSheet();
   hydratePhotos();
   if (v.after) v.after();
   fxAfterRender();
   renderFocus();
+  if (fresh && lastViewKey !== null) enterAnim(navHint); else swapAnim();
+  swapped.length = 0;
+  lastViewKey = key; navHint = 0; forceEnter = false;
 
   if (focusId) {
     const el = document.getElementById(focusId);

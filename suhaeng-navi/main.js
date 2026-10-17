@@ -285,7 +285,7 @@ const H = {
   capRestart() { capReset(); render(); goTop(); },
   unmask(arg) { const [i, j] = arg.split(':').map(Number); if (cap.images[i]) { cap.images[i].boxes.splice(j, 1); render(); } },
   calWeek() { state.cal.view = 'week'; state.cal.date = today(); state.cal.q = ''; setView('calendar'); },
-  railToggle() { state.rail = !state.rail; save(); render(); setTimeout(setupLens, 300); },
+  railToggle() { state.rail = !state.rail; save(); render(); },
   periodAdd() {
     const p = state.school.periods, last = p[p.length - 1] || [480, 525];
     p.push([last[1] + 10, Math.min(1430, last[1] + 55)]);
@@ -322,6 +322,19 @@ const H = {
     state.events.push(...seedEvents().filter(e => !eids.has(e.id)));
     save(); render(); toast('예시 카드와 일정을 넣었어요');
   },
+  importOpen() { importText = ''; sheet = { kind: 'import' }; render(); },
+  importRun() {
+    let d = null;
+    try { d = JSON.parse(importText); } catch (e) { d = null; }
+    if (!d || !Array.isArray(d.cards)) { if (sheet) sheet.err = '수행 내비에서 복사한 데이터가 아니에요. 처음부터 끝까지 그대로 붙여넣어 주세요.'; render(); return; }
+    state.cards = d.cards.filter(a => a && a.id && a.title).map(normalizeCard);
+    if (Array.isArray(d.academies)) state.academies = d.academies;
+    if (Array.isArray(d.events)) state.events = d.events;
+    if (d.study && Array.isArray(d.study.sets)) state.study = { sets: d.study.sets, cards: Array.isArray(d.study.cards) ? d.study.cards : [], maps: Array.isArray(d.study.maps) ? d.study.maps : [] };
+    if (d.settings && typeof d.settings === 'object') state.settings = { ...state.settings, ...d.settings };
+    if (d.look && typeof d.look === 'object') { state.look = { ...state.look, ...d.look }; applyLook(); }
+    importText = ''; sheet = null; save(); render(); toast(`수행 카드 ${state.cards.length}장을 가져왔어요`);
+  },
   copyData() { copyText(JSON.stringify({ cards: state.cards, academies: state.academies, events: state.events, study: state.study, settings: state.settings, look: state.look }, null, 2)); },
   resetAll() {
     if (confirmKey !== 'reset') { arm('reset'); return; }
@@ -339,7 +352,7 @@ const H = {
   scrim(arg, el, e) { if (e.target === el) { sheet = null; render(); } }
 };
 
-Object.assign(H, CAL_H, NOTI_H, FX_H, MEM_H, STUDY_H);
+Object.assign(H, CAL_H, NOTI_H, FX_H, MEM_H, STUDY_H, PWA_H);
 
 /* ---------- events ---------- */
 document.addEventListener('dblclick', e => {
@@ -355,6 +368,7 @@ document.addEventListener('click', e => {
   fn(el.dataset.arg || '', el, e);
 });
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && studio) { studioClose(); return; }
   if (e.key === 'Escape' && sheet) { sheet = null; evDraft = null; render(); return; }
   const t = e.target;
   if ((e.key === 'Enter' || e.key === ' ') && t.matches && t.matches('[role="button"][data-act]')) { e.preventDefault(); t.click(); return; }
@@ -380,6 +394,7 @@ document.addEventListener('input', e => {
   const el = e.target, d = el.dataset || {};
   if (d.bind === 'capText') { cap.text = el.value; errors.read = null; }
   else if (d.bind === 'chatDraft') chatDraft = el.value;
+  else if (d.bind === 'importText') { importText = el.value; if (sheet && sheet.err) { sheet.err = null; } }
   else if (d.bind === 'quick') { quickText = el.value; const p = document.getElementById('q-prev'); if (p) p.innerHTML = calQuickPreview(); }
   else if (d.bind === 'calQ') { state.cal.q = el.value; render(); }
   else if (d.bind === 'ncName') { if (sheet) sheet.name = el.value; }
@@ -497,80 +512,15 @@ document.addEventListener('pointerup', () => {
   render();
 });
 
-/* ---------- Liquid Glass refraction (Chromium: SVG displacement in backdrop-filter) ---------- */
-function sdRoundedRect(px, py, hw, hh, r) {
-  const qx = Math.abs(px) - (hw - r), qy = Math.abs(py) - (hh - r);
-  return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
-}
-function lensMap(width, height, radius, bevel) {
-  const ss = 2, w = Math.round(width * ss), h = Math.round(height * ss);
-  const hi = document.createElement('canvas'); hi.width = w; hi.height = h;
-  const ctx = hi.getContext('2d'), img = ctx.createImageData(w, h), data = img.data;
-  const hw = w / 2, hh = h / 2, r = Math.min(radius * ss, hw, hh), bev = bevel * ss;
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const px = x - hw + .5, py = y - hh + .5, d = sdRoundedRect(px, py, hw, hh, r);
-    let dx = 0, dy = 0;
-    if (d > -bev && d < 0) {
-      const t = 1 + d / bev, inc = Math.acos(clamp(t, 0, 1)), tr = Math.asin(Math.min(1, Math.sin(inc) / 1.5));
-      const mag = Math.tan(inc - tr) * 3.2;
-      const gx = sdRoundedRect(px + 1, py, hw, hh, r) - sdRoundedRect(px - 1, py, hw, hh, r);
-      const gy = sdRoundedRect(px, py + 1, hw, hh, r) - sdRoundedRect(px, py - 1, hw, hh, r);
-      const len = Math.hypot(gx, gy) || 1;
-      dx = -gx / len * mag; dy = -gy / len * mag;
-    }
-    const i = (y * w + x) * 4;
-    data[i] = clamp(Math.round(128 + dx * 127), 0, 255); data[i + 1] = clamp(Math.round(128 + dy * 127), 0, 255); data[i + 2] = 128; data[i + 3] = 255;
-  }
-  ctx.putImageData(img, 0, 0);
-  const lo = document.createElement('canvas'); lo.width = Math.round(width); lo.height = Math.round(height);
-  const lc = lo.getContext('2d'); lc.imageSmoothingQuality = 'high'; lc.drawImage(hi, 0, 0, lo.width, lo.height);
-  return lo.toDataURL();
-}
-const lensOK = (() => {
-  try {
-    if (matchMedia('(prefers-reduced-transparency: reduce)').matches || matchMedia('(prefers-contrast: more)').matches) return false;
-    const p = document.createElement('div'); p.style.backdropFilter = 'url(#x)';
-    return p.style.backdropFilter.includes('url');
-  } catch (e) { return false; }
-})();
-const lensSizes = new WeakMap();
-function lensFor(el, n) {
-  const w = Math.round(el.offsetWidth), h = Math.round(el.offsetHeight);
-  if (!w || !h || w * h > 900000) return;
-  const prev = lensSizes.get(el);
-  if (prev && prev.w === w && prev.h === h) return;
-  lensSizes.set(el, { w, h });
-  const radius = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 20;
-  const id = 'lens-' + n, defs = document.getElementById('lens-defs');
-  let f = document.getElementById(id);
-  if (!f) { f = document.createElementNS('http://www.w3.org/2000/svg', 'filter'); f.id = id; defs.appendChild(f); }
-  f.setAttribute('x', '0'); f.setAttribute('y', '0'); f.setAttribute('width', w); f.setAttribute('height', h);
-  f.setAttribute('filterUnits', 'userSpaceOnUse'); f.setAttribute('color-interpolation-filters', 'sRGB');
-  f.innerHTML = `<feImage href="${lensMap(w, h, radius, Math.min(14, h / 4))}" x="0" y="0" width="${w}" height="${h}" result="map" preserveAspectRatio="none"/><feDisplacementMap in="SourceGraphic" in2="map" scale="${Math.min(14, h / 5)}" xChannelSelector="R" yChannelSelector="G"/>`;
-  el.style.setProperty('--lens', `url(#${id})`);
-  el.setAttribute('data-lens-on', '');
-}
-function setupLens() {
-  document.querySelectorAll('[data-lens]').forEach(el => {
-    if (!lensOK || state.look.style === 'simple') { el.removeAttribute('data-lens-on'); return; }
-    lensFor(el, el.dataset.lens);
-  });
-}
-if (lensOK && 'ResizeObserver' in window) {
-  let t = null;
-  const ro = new ResizeObserver(() => { clearTimeout(t); t = setTimeout(setupLens, 160); });
-  document.querySelectorAll('[data-lens]').forEach(el => ro.observe(el));
-}
-
 /* ---------- boot ---------- */
 (function boot() {
   const h = location.hash.slice(1);
   if (VIEWS[h]) { state.view = h; state.detail = null; }
   if (!VIEWS[state.view]) state.view = 'today';
+  document.body.classList.add('booting');
   applyLook();
   initAI();
   render();
-  setupLens();
   splash();
   renderFocus();
   tickNotifs();

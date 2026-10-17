@@ -123,6 +123,7 @@ function viewSettings() {
       <div class="group">
         <div class="gi"><div style="flex:1"><b>예시 카드 다시 넣기</b><div class="small faint">발표 연습용 예시 수행 카드 4장을 오늘 날짜에 맞춰 넣어요</div></div><button class="btn btn-line btn-sm" data-act="reseed">넣기</button></div>
         <div class="gi"><div style="flex:1"><b>내 데이터 복사</b><div class="small faint">수행 카드, 시험지, 설정을 JSON으로 복사해요</div></div><button class="btn btn-line btn-sm" data-act="copyData">${icon('copy')}복사</button></div>
+        <div class="gi"><div style="flex:1"><b>데이터 가져오기</b><div class="small faint">다른 기기나 설치한 앱에서 복사한 데이터를 붙여넣어 옮겨요</div></div><button class="btn btn-line btn-sm" data-act="importOpen">${icon('plus')}가져오기</button></div>
         <div class="gi"><div style="flex:1"><b>모두 지우기</b><div class="small faint">카드, 기록, 사진, 설정을 이 기기에서 지워요</div></div><button class="btn btn-danger btn-sm" data-act="resetAll">${confirmKey === 'reset' ? '한 번 더 누르면 지워져요' : '지우기'}</button></div>
       </div></section>
     <div class="lock-card">${logoMark(34)}<div><b>외부에서 학생 데이터를 모으지 않아요</b><p>모든 데이터는 이 브라우저에만 저장돼요. AI 기능은 링크를 연 사람의 Claude 계정으로 실행되고, 사진 속 이름과 학번은 저장하기 전에 가려요.</p></div></div>`
@@ -208,4 +209,11 @@ function viewChat() {
   };
 }
 
+/* ---------- data import (move from the Claude page to the installed app, or between devices) ---------- */
+let importText = '';
+SHEETS.import = sh => ({ html: `<div class="sheet-h"><h3>데이터 가져오기</h3><button class="btn btn-soft btn-icon btn-sm" data-act="closeSheet" aria-label="닫기">${icon('x')}</button></div>
+  <p class="small muted">설정 → 데이터 → <b>내 데이터 복사</b>로 복사한 내용을 붙여넣어요. 지금 기기의 카드와 설정은 가져온 내용으로 바뀌어요.</p>
+  <textarea class="input" id="import-in" data-bind="importText" rows="8" placeholder='{"cards": [...]}'>${esc(importText)}</textarea>
+  ${sh.err ? `<p class="err">${esc(sh.err)}</p>` : ''}
+  <div class="row-end"><button class="btn btn-soft" data-act="closeSheet">취소</button><button class="btn btn-pri" data-act="importRun">${icon('check')}가져오기</button></div>` });
 const VIEWS = { today: viewToday, board: viewBoard, calendar: () => viewCalendar(), capture: viewCapture, study: () => viewStudy(), timetable: viewTimetable, progress: viewProgress, settings: viewSettings, prompts: viewPrompts, chat: viewChat };

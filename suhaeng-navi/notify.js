@@ -69,18 +69,23 @@ const banners = [];
 function renderBanners() {
   const root = document.getElementById('banners');
   if (!root) return;
-  root.innerHTML = banners.map(n => { const k = NOTI_KIND[n.kind] || NOTI_KIND.test; return `<div class="banner glass${STICKY.has(n.kind) ? ' sticky' : ''}" role="alert">
+  morph(root, banners.map(n => { const k = NOTI_KIND[n.kind] || NOTI_KIND.test; return `<div class="banner glass${STICKY.has(n.kind) ? ' sticky' : ''}${n.leaving ? ' leaving' : ''}" data-key="${esc(n.id)}" role="alert">
     <span class="bn-ico hue" style="--h:${k.h}">${icon(k.icon)}</span>
     <div class="bn-c"><div class="bn-app">${logoMark(15)}<span>수행 내비 · ${esc(k.label)}</span><small>${when(n.at)}</small></div><strong>${esc(n.title)}</strong><p>${esc(n.body)}</p>
       <div class="bn-act"><button class="btn btn-pri btn-sm" data-act="notiOpen" data-arg="${esc(n.id)}">열기</button>${n.kind === 'missed' ? '' : `<button class="btn btn-soft btn-sm" data-act="notiSnooze" data-arg="${esc(n.id)}">5분 뒤</button>`}</div></div>
-    <button class="bn-x" data-act="bannerClose" data-arg="${esc(n.id)}" aria-label="닫기">${icon('x')}</button></div>`; }).join('');
+    <button class="bn-x" data-act="bannerClose" data-arg="${esc(n.id)}" aria-label="닫기">${icon('x')}</button></div>`; }).join(''));
 }
-function dismissLater(n) {
-  setTimeout(() => { const i = banners.findIndex(b => b.id === n.id); if (i >= 0) { banners.splice(i, 1); renderBanners(); } }, 9000);
+function removeBanner(id) {
+  const b = banners.find(x => x.id === id);
+  if (!b || b.leaving) return;
+  const drop = () => { const i = banners.indexOf(b); if (i >= 0) { banners.splice(i, 1); renderBanners(); } };
+  if (!motionOn()) { drop(); return; }
+  b.leaving = true; renderBanners(); setTimeout(drop, 320 * mo());
 }
+function dismissLater(n) { setTimeout(() => removeBanner(n.id), 9000); }
 function showBanner(n) {
   banners.unshift(n);
-  if (banners.length > 3) banners.length = 3;
+  banners.filter(b => !b.leaving).slice(3).forEach(b => removeBanner(b.id));
   renderBanners(); chime();
   if (state.notif.sound && navigator.vibrate) { try { navigator.vibrate([24, 40, 24]); } catch (e) { /* optional */ } }
   if (document.hidden) document.title = `🔔 ${n.title} · 수행 내비`;
@@ -91,8 +96,8 @@ function showBanner(n) {
 /* the browser's own notification, when this page is allowed to show one (best effort) */
 const sysOK = () => { try { return 'Notification' in window && Notification.permission === 'granted'; } catch (e) { return false; } };
 function systemNotify(n) {
-  if (!state.notif.system || !document.hidden || !sysOK()) return;
-  try { const x = new Notification(n.title, { body: n.body, tag: n.id }); x.onclick = () => { window.focus(); NOTI_H.notiOpen(n.id); x.close(); }; } catch (e) { /* not allowed in this frame */ }
+  if (!state.notif.system || !document.hidden || !sysOK()) return; // visible page: the banner is enough
+  swNotify(n);
 }
 function deliver(n, banner) {
   state.fired[n.id] = n.at;
@@ -123,6 +128,7 @@ function tickNotifs() {
   for (const k of Object.keys(state.fired)) if (state.fired[k] < cutoff) { delete state.fired[k]; changed = true; }
   if (changed || snoozed.length) { save(); renderShell(); if (sheet && sheet.kind === 'notif') renderSheet(); }
   armNext(now);
+  syncSchedule();
 }
 /* wake exactly when the next reminder is due, not just on the 10-second sweep */
 function nextNotif(now) {
@@ -184,7 +190,8 @@ function notifSettingsHtml() {
   const stepOpts = [[-1, '끄기'], [0, '시작할 때'], [5, '5분 전'], [10, '10분 전'], [15, '15분 전'], [30, '30분 전']];
   const nx = N.on ? nextNotif(Date.now()) : null;
   const sysState = (() => { try { return 'Notification' in window ? Notification.permission : 'none'; } catch (e) { return 'none'; } })();
-  return `<div class="cell pad noti-status">${logoMark(34)}<div style="flex:1;min-width:0"><span class="eyebrow">${N.on ? '알림 켜짐' : '알림 꺼짐'}</span>
+  return `<button class="app-card" data-act="installSheet"><span class="ac-ico">${logoMark(40)}</span><span class="ac-t"><b>${standalone() ? '수행 내비 앱 사용 중' : '앱으로 설치하고 잠금 화면 알림 받기'}</b><small>${standalone() ? '잠금 화면 알림과 캘린더 연결을 확인해요' : '홈 화면 설치 · 시스템 알림 · 휴대폰 캘린더 연결'}</small></span>${icon('next')}</button>
+  <div class="cell pad noti-status">${logoMark(34)}<div style="flex:1;min-width:0"><span class="eyebrow">${N.on ? '알림 켜짐' : '알림 꺼짐'}</span>
       <b>${nx ? `다음 알림 · ${when(nx.at)}` : N.on ? '이틀 안에 예정된 알림이 없어요' : '알림을 켜면 계획과 마감을 정시에 알려 줘요'}</b>${nx ? `<small>${esc(nx.title)}</small>` : ''}</div>${N.on ? `<span class="chip green">정시 알림</span>` : ''}</div>
   <div class="group">
     ${sw('on', N.on, '알림 받기', '아래 알림을 한꺼번에 켜고 꺼요')}
@@ -211,7 +218,7 @@ const NOTI_H = {
   notiClear() { state.inbox = []; save(); render(); },
   notiOpen(id, el) {
     const n = state.inbox.find(x => x.id === id) || banners.find(x => x.id === id) || notifPlan(today(), addDays(today(), 2)).find(x => x.id === id);
-    const bi = banners.findIndex(b => b.id === id); if (bi >= 0) { banners.splice(bi, 1); renderBanners(); }
+    removeBanner(id);
     if (!n || !n.act) { sheet = null; render(); return; }
     if (n.act.type === 'inbox') { NOTI_H.notiCenter(); return; }
     sheet = null;
@@ -220,17 +227,18 @@ const NOTI_H = {
     setView(n.act.arg || 'today');
   },
   notiSnooze(id) {
-    const i = banners.findIndex(b => b.id === id); const n = banners[i];
-    if (n) { banners.splice(i, 1); renderBanners(); state.snoozes.push({ ...n, id: n.id + ':z' + Date.now(), at: Date.now() + 5 * 60e3 }); save(); toast('5분 뒤에 다시 알려 줄게요'); }
+    const n = banners.find(b => b.id === id);
+    if (n) { removeBanner(id); state.snoozes.push({ ...n, id: n.id + ':z' + Date.now(), at: Date.now() + 5 * 60e3 }); save(); toast('5분 뒤에 다시 알려 줄게요'); }
   },
-  bannerClose(id) { const i = banners.findIndex(b => b.id === id); if (i >= 0) { banners.splice(i, 1); renderBanners(); } },
+  bannerClose(id) { removeBanner(id); },
   notiSet(k) { state.notif[k] = !state.notif[k]; save(); render(); },
   async notiSystem() {
     if (state.notif.system && sysOK()) { state.notif.system = false; save(); render(); return; }
     let p = 'denied';
     try { p = await Notification.requestPermission(); } catch (e) { p = 'denied'; }
     state.notif.system = p === 'granted'; save(); render();
-    toast(p === 'granted' ? '기기 알림을 켰어요' : '이 화면에서는 기기 알림이 막혀 있어요. 화면 배너로 알려 줄게요');
+    if (p === 'granted') { syncSchedule(true); registerPeriodic(); }
+    toast(p === 'granted' ? '기기 알림을 켰어요' : '이 화면에서는 기기 알림이 막혀 있어요. 화면 배너와 캘린더 연결로 알려 줄게요');
   },
   notiTest() {
     const n = { id: 'test:' + Date.now(), at: Date.now(), kind: 'test', title: '테스트 알림이에요', body: '수행 계획과 마감이 다가오면 이렇게 알려 줘요.', act: { type: 'view', arg: 'today' } };

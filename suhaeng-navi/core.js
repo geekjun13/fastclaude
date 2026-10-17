@@ -470,9 +470,9 @@ function fresh() {
            boardFilter: 'open', boardSubject: '', cal: { view: 'week', date: today(), q: '' }, rail: false,
            look: { ...DEF_LOOK }, plan: 'air', usage: { month: today().slice(0, 7), quiz: 0 },
            study: { sets: [], cards: [], maps: [] }, studyTab: 'make', timerLog: [], timer: null, pace: true,
-           seasons: { active: 'term' }, reports: {} };
+           seasons: { active: 'term' }, reports: {}, member: { cycle: 'month', since: null, no: null } };
 }
-const DEF_LOOK = { style: 'liquid', glass: 70, blur: 24, round: 60, motion: 'smooth', ambient: true, theme: 'sunrise' };
+const DEF_LOOK = { mode: 'auto', style: 'liquid', glass: 70, blur: 24, round: 60, motion: 'smooth', ambient: true, theme: 'sunrise' };
 function normalizeCard(a) {
   return { checked: {}, checklist: null, steps: [], chat: [], photoIds: [], materials: [], rubric: [], type: '', ...a,
            materials: strs(a.materials), rubric: strs(a.rubric), steps: Array.isArray(a.steps) ? a.steps : [],
@@ -496,7 +496,8 @@ function load() {
       plan: ['air', 'pro', 'performance'].includes(s.plan) ? s.plan : 'air',
       usage: s.usage && s.usage.month ? s.usage : f.usage,
       study: { sets: arr(s.study && s.study.sets, []), cards: arr(s.study && s.study.cards, []), maps: arr(s.study && s.study.maps, []) },
-      timerLog: arr(s.timerLog, []), seasons: s.seasons && s.seasons.active ? s.seasons : f.seasons, reports: s.reports || {} };
+      timerLog: arr(s.timerLog, []), seasons: s.seasons && s.seasons.active ? s.seasons : f.seasons, reports: s.reports || {},
+      member: { ...f.member, ...(s.member || {}) } };
     for (const c of f.calendars) if (!out.calendars.some(x => x.id === c.id)) out.calendars.push(c);
     if (out.view === 'week') out.view = 'calendar';
     if (!Array.isArray(out.settings.schoolEnd) || out.settings.schoolEnd.length !== 5) out.settings.schoolEnd = DEF_SETTINGS.schoolEnd.slice();

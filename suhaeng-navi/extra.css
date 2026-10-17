@@ -9,38 +9,6 @@
 @keyframes bob{50%{transform:rotate(-2deg) translateY(-6px)}}
 .hero-logo{transform:rotate(-9deg);box-shadow:0 20px 44px rgba(0,0,0,.28);z-index:1}
 
-/* splash */
-.splash{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:var(--bg);transition:opacity .55s ease,visibility .55s}
-.splash.out{opacity:0;visibility:hidden}
-.splash-in{display:flex;flex-direction:column;align-items:center;gap:10px;animation:splash-in .8s var(--ease-gel) both}
-.splash-in b{font-size:27px;font-weight:900;letter-spacing:-.03em;margin-top:8px}
-.splash-in small{color:var(--ink-3);font-size:13px}
-.splash .logo{animation:splash-logo 1s var(--ease-gel) both}
-@keyframes splash-in{from{opacity:0;transform:translateY(14px)}}
-@keyframes splash-logo{0%{transform:rotate(-30deg) scale(.4);opacity:0}60%{transform:rotate(5deg) scale(1.08);opacity:1}100%{transform:rotate(-4deg) scale(1)}}
-
-/* page transitions (View Transitions, with a class fallback) */
-#view{view-transition-name:page}
-#tb-title{view-transition-name:tbtitle}
-::view-transition-old(root),::view-transition-new(root){animation:none}
-::view-transition-group(page){animation:none}
-::view-transition-old(page){animation:vt-out calc(.26s * var(--mo)) cubic-bezier(.4,0,1,1) both}
-::view-transition-new(page){animation:vt-in calc(.52s * var(--mo)) cubic-bezier(.16,1,.3,1) both}
-html[data-vt="fwd"]::view-transition-old(page){animation-name:vt-out-l}
-html[data-vt="fwd"]::view-transition-new(page){animation-name:vt-in-r}
-html[data-vt="back"]::view-transition-old(page){animation-name:vt-out-r}
-html[data-vt="back"]::view-transition-new(page){animation-name:vt-in-l}
-::view-transition-old(tbtitle){animation:vt-out calc(.2s * var(--mo)) ease both}
-::view-transition-new(tbtitle){animation:vt-in calc(.36s * var(--mo)) ease both}
-@keyframes vt-out{to{opacity:0;transform:scale(.985)}}
-@keyframes vt-in{from{opacity:0;transform:scale(1.012)}}
-@keyframes vt-out-l{to{opacity:0;transform:translateX(-28px)}}
-@keyframes vt-in-r{from{opacity:0;transform:translateX(40px)}}
-@keyframes vt-out-r{to{opacity:0;transform:translateX(28px)}}
-@keyframes vt-in-l{from{opacity:0;transform:translateX(-40px)}}
-.vt-in-fwd{animation:vt-in-r calc(.5s * var(--mo)) cubic-bezier(.16,1,.3,1) both}
-.vt-in-back{animation:vt-in-l calc(.5s * var(--mo)) cubic-bezier(.16,1,.3,1) both}
-.vt-in-fade{animation:vt-in calc(.42s * var(--mo)) cubic-bezier(.16,1,.3,1) both}
 .main{touch-action:pan-y pinch-zoom}
 
 /* sliding pills: segmented controls, phone tab bar, sidebar */
@@ -147,7 +115,7 @@ input[type=range]:disabled{opacity:.35;cursor:not-allowed}
 .step-play span{flex:1;min-width:0;font-size:14px;font-weight:600}
 
 /* study lab */
-.study-hero{background:linear-gradient(135deg,#1B2337 30%,#2C3E73)}
+.study-hero{background:linear-gradient(135deg,var(--hero) 30%,var(--hero-2))}
 .st-title{font-size:22px}
 .qcard{padding:16px 18px;display:flex;flex-direction:column;gap:10px;scroll-margin-top:110px}
 .qcard.is-right{box-shadow:inset 4px 0 0 var(--green),var(--sh-cell)}

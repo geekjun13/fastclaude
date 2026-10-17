@@ -3,9 +3,9 @@
    the focus timer with generated soundscapes, and the member AI tools. */
 
 const TIERS = {
-  air: { name: 'Air', price: 0, tag: '기본', h: 44, desc: '수행평가 관리에 필요한 모든 기본 기능과 월 5회 시험지' },
-  pro: { name: 'Pro', price: 3900, tag: '공부까지', h: 214, desc: '문제집, 오답 되감기, 포커스 타이머로 공부를 끝까지' },
-  performance: { name: 'Performance', price: 7900, tag: '시험 대비 완성', h: 330, desc: '실전 모의고사, 약점 레이더, 시험 D-30 플랜까지' }
+  air: { name: 'Air', price: 0, year: 0, tag: '기본', h: 44, quiz: '월 5회', desc: '수행평가 관리에 필요한 모든 기본 기능과 월 5회 시험지' },
+  pro: { name: 'Pro', price: 3900, year: 39000, tag: '공부까지', h: 214, quiz: '무제한', desc: '문제집, 오답 되감기, 포커스 타이머로 공부를 끝까지' },
+  performance: { name: 'Performance', price: 7900, year: 79000, tag: '시험 대비 완성', h: 300, quiz: '무제한', desc: '실전 모의고사, 약점 레이더, 시험 D-30 플랜까지' }
 };
 const RANK = { air: 0, pro: 1, performance: 2 };
 const FEATURES = [
@@ -40,23 +40,182 @@ function quizLeft() {
   return Math.max(0, AIR_QUIZ_LIMIT - state.usage.quiz);
 }
 
-/* ---------- settings: membership ---------- */
-function memberSettingsHtml() {
-  const cur = state.plan, p = TIERS[cur];
-  const seg = Object.entries(TIERS).map(([k, v]) => `<button data-act="planPick" data-arg="${k}" aria-pressed="${(memberPick || cur) === k}">${v.name}</button>`).join('');
-  const pick = memberPick || cur, pp = TIERS[pick];
-  const feats = FEATURES.filter(f => RANK[f.tier] <= RANK[pick]);
-  return `<div class="plan-card hue" style="--h:${p.h}">${logoMark(46)}<div style="flex:1;min-width:0"><span class="eyebrow">지금 쓰는 플랜</span><b>수행 내비 ${p.name}</b><small>${p.price ? `월 ${won(p.price)}` : '무료'} · ${esc(p.desc)}</small></div><span class="chip navy">${p.tag}</span></div>
-    <div class="row-sb"><div class="seg" data-seg="plan" role="group" aria-label="플랜 보기">${seg}</div><span class="small faint">월 구독 · 언제든 변경</span></div>
-    <div class="cell pad stack">
-      <div class="row-sb"><div><b style="font-size:17px">${pp.name}</b> <span class="faint small">${pp.tag}</span></div><b class="num" style="font-size:22px">${pp.price ? `${won(pp.price)}<small class="faint" style="font-size:12px"> / 월</small>` : '무료'}</b></div>
-      <p class="small muted">${esc(pp.desc)}</p>
-      ${feats.length ? `<div class="feat-grid">${feats.map(f => `<div class="feat hue" style="--h:${TIERS[f.tier].h}"><span class="ni-ico hue" style="--h:${TIERS[f.tier].h}">${icon(f.icon)}</span><div><b>${f.name}</b><small>${esc(f.desc)}</small></div></div>`).join('')}</div>` : '<p class="small faint">수행 카드, 캘린더, 알림, 공지 스캔, AI 코치, 시험지 월 5회를 쓸 수 있어요.</p>'}
-      <div class="row-end">${pick === cur ? '<span class="chip green">지금 쓰는 플랜</span>' : `<button class="btn btn-pri" data-act="planApply" data-arg="${pick}">${pp.name}${RANK[pick] > RANK[cur] ? '로 업그레이드' : '로 변경'}</button>`}</div>
-    </div>
-    <p class="tiny faint">결제 연동 전 미리보기 단계라 플랜을 바꿔도 실제로 청구되지 않아요. 멤버십 기능은 해당 플랜에서만 화면에 나타나요.</p>`;
+/* ---------- membership card (settings + studio) ---------- */
+const AIR_BASICS = [['camera', '공지 스캔'], ['list', '채점 기준 번역'], ['route', '역산 플래너'], ['flame', '몰림 경보'], ['calendar', '캘린더 · 시간표'], ['bell', '정시 알림'], ['spark', '내비 코치'], ['book', '시험지 월 5회']];
+const featsOf = k => FEATURES.filter(f => RANK[f.tier] <= RANK[k]);
+const memberName = () => state.settings.name || '멤버';
+function mcardHtml(tier, finish, opts) {
+  const t = TIERS[tier], m = state.member, no = m.no || 'SN-0000-0000';
+  return `<div class="mcard fin-${finish} tier-${tier}${opts && opts.flip ? ' flip' : ''}${opts && opts.small ? ' small' : ''}" ${opts && opts.id ? `id="${opts.id}"` : ''}>
+    <div class="mc-face mc-front"><div class="mc-row">${logoMark(opts && opts.small ? 24 : 34)}<span class="mc-brand">수행 내비</span><span class="mc-holo" aria-hidden="true"></span></div>
+      <div class="mc-tier">${t.name.toUpperCase()}</div>
+      <div class="mc-row mc-low"><span><small>MEMBER</small><b>${esc(memberName())}</b></span><span class="mc-tag">${t.tag}</span></div></div>
+    <div class="mc-face mc-back"><div class="mc-row"><span class="mc-brand">수행 내비 ${t.name}</span>${logoMark(26)}</div>
+      <div class="mc-dots" aria-hidden="true"></div>
+      <div class="mc-row mc-low"><span><small>MEMBER NO.</small><b class="num">${no}</b></span><span><small>SINCE</small><b class="num">${m.since ? m.since.replace(/-/g, '.') : today().replace(/-/g, '.')}</b></span></div></div>
+  </div>`;
 }
-let memberPick = null;
+function memberSettingsHtml() {
+  const cur = state.plan, t = TIERS[cur], f = featsOf(cur), cyc = state.member.cycle === 'year' ? '연간' : '월간';
+  return `<div class="plan-hero cell hue" style="--h:${t.h}">
+      <div class="ph-card" data-act="studioOpen" role="button" tabindex="0" aria-label="요금제 살펴보기">${mcardHtml(cur, effMode(), { small: true })}</div>
+      <div class="ph-t"><span class="eyebrow">지금 쓰는 플랜</span><b>수행 내비 ${t.name}</b>
+        <small>${t.price ? `${cyc} · 월 ${won(t.price)}${state.member.since ? ` · ${mdMid(state.member.since)}부터` : ''}` : '무료 · 기본 기능 모두'}</small>
+        <p class="small muted">${esc(t.desc)}</p>
+        <div class="row" style="margin-top:6px"><button class="btn btn-pri" data-act="studioOpen">${icon('spark')}요금제 살펴보기</button></div></div>
+    </div>
+    ${f.length ? `<div class="feat-grid">${f.map(x => `<div class="feat"><span class="ni-ico hue" style="--h:${TIERS[x.tier].h}">${icon(x.icon)}</span><div><b>${x.name}</b><small>${esc(x.desc)}</small></div></div>`).join('')}</div>` : ''}
+    <p class="tiny faint">멤버십 기능은 해당 플랜에서만 화면에 나타나요. 언제든 여기서 바꿀 수 있어요.</p>`;
+}
+
+/* ---------- membership studio: configure → review → slide to start → celebrate ---------- */
+let studio = null, studioT = [];
+const cyclePrice = (k, c) => (c === 'year' ? TIERS[k].year : TIERS[k].price);
+function studioOpen() {
+  const cur = state.plan;
+  studio = { step: 'build', pick: cur === 'air' ? 'pro' : cur, cycle: state.member.cycle || 'month', finish: effMode(), phase: 0, from: cur };
+  document.body.classList.add('studio-open');
+  renderStudio(true);
+}
+function studioClose() {
+  if (!studio || studio.step === 'run') return;
+  studioT.forEach(clearTimeout); studioT = [];
+  studio = null; applyLook(); document.body.classList.remove('studio-open');
+  renderStudio();
+}
+function previewMode(m) { const r = document.documentElement; r.dataset.mode = m; const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = MODE_BG[m]; }
+function studioPanel() {
+  const st = studio, cur = state.plan, t = TIERS[st.pick];
+  if (st.step === 'build') {
+    const plans = Object.entries(TIERS).map(([k, v]) => `<button class="plan-opt hue" style="--h:${v.h}" data-act="studioPick" data-arg="${k}" aria-pressed="${st.pick === k}">
+        <span class="po-top"><b>${v.name}</b>${k === cur ? '<span class="chip green">사용 중</span>' : k === 'performance' ? '<span class="chip sun">추천</span>' : ''}</span>
+        <span class="po-tag">${v.tag}</span><span class="po-price num">${v.price ? `${won(cyclePrice(k, st.cycle))}<small>${st.cycle === 'year' ? ' / 년' : ' / 월'}</small>` : '무료'}</span></button>`).join('');
+    const sw = Object.entries(MODES).map(([k, m]) => `<button class="fin-sw fs-${k}" data-act="studioFinish" data-arg="${k}" aria-pressed="${st.finish === k}"><i aria-hidden="true"></i><b>${m.name}</b></button>`).join('');
+    const feats = featsOf(st.pick), have = new Set(featsOf(cur).map(f => f.id));
+    return `<div class="st-sec"><h3>플랜</h3><div class="plan-opts">${plans}</div></div>
+      <div class="st-sec"><h3>결제 주기</h3><div class="seg" data-seg="cycle" role="group" aria-label="결제 주기"><button data-act="studioCycle" data-arg="month" aria-pressed="${st.cycle === 'month'}">월간</button><button data-act="studioCycle" data-arg="year" aria-pressed="${st.cycle === 'year'}">연간 · 2개월 무료</button></div></div>
+      <div class="st-sec"><h3>앱 컬러</h3><p class="small faint">멤버십 카드와 앱 전체에 입혀져요</p><div class="fin-sws">${sw}</div></div>
+      <div class="st-sec"><h3>${st.pick === 'air' ? '기본 기능' : `포함된 기능 ${feats.length}개`}</h3>
+        <ul class="feat-list">${st.pick === 'air' ? AIR_BASICS.map(([ic, n]) => `<li data-key="b-${n}">${icon(ic)}<span>${n}</span></li>`).join('')
+          : feats.map(f => `<li data-key="${f.id}" class="${have.has(f.id) ? '' : 'new'}"><span class="ni-ico hue" style="--h:${TIERS[f.tier].h}">${icon(f.icon)}</span><span><b>${f.name}</b><small>${esc(f.desc)}</small></span>${have.has(f.id) ? '' : '<em>새로</em>'}</li>`).join('')}</ul></div>`;
+  }
+  if (st.step === 'review') {
+    const down = RANK[st.pick] < RANK[cur], price = cyclePrice(st.pick, st.cycle);
+    const rows = [['플랜', `수행 내비 ${t.name}`], ['결제 주기', st.pick === 'air' ? '—' : st.cycle === 'year' ? '연간 (2개월 무료)' : '월간'], ['앱 컬러', MODES[st.finish].name], ['정가', price ? `${won(price)}${st.cycle === 'year' ? ' / 년' : ' / 월'}` : '무료'], ['시작일', mdMid(today())]];
+    return `<button class="btn btn-soft btn-sm st-back" data-act="studioBack">${icon('back')}구성 바꾸기</button>
+      <div class="st-sec"><h3>${down ? '플랜 변경 확인' : '주문 요약'}</h3>
+        <div class="sum">${rows.map(([k, v]) => `<div class="sum-r"><span>${k}</span><b>${v}</b></div>`).join('')}
+          <div class="sum-r total"><span>오늘 청구 금액</span><b class="num">0원</b></div></div>
+        <p class="small faint">${down ? `${TIERS[cur].name} 전용 기능은 화면에서 사라지고, 만든 기록은 그대로 남아요.` : '지금은 청구 없이 바로 시작돼요. 언제든 설정 → 요금제에서 바꿀 수 있어요.'}</p></div>
+      <div class="slide" id="slide" style="--h:${t.h}"><span class="sl-fill" aria-hidden="true"></span><span class="sl-label">밀어서 ${down ? `${t.name}로 변경` : `${t.name} 시작하기`}</span>
+        <button class="sl-knob" data-act="slideGo" aria-label="${t.name} ${down ? '변경' : '시작'}">${icon('next')}</button></div>`;
+  }
+  if (st.step === 'run') {
+    const lines = ['멤버십 카드를 만드는 중', '전용 기능을 여는 중', '앱 컬러를 입히는 중'];
+    return `<div class="st-run"><svg class="run-ring" viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="34" class="bg"/><circle cx="40" cy="40" r="34" class="fg" pathLength="1"/></svg>
+      <ul class="run-lines">${lines.map((l, i) => `<li class="${st.phase > i ? 'done' : st.phase === i ? 'now' : ''}" data-key="l${i}"><i>${icon('check')}</i>${l}</li>`).join('')}</ul></div>`;
+  }
+  const gained = featsOf(st.pick).filter(f => RANK[f.tier] > RANK[st.from]);
+  return `<div class="st-done"><span class="eyebrow">${st.pick === 'air' ? '변경 완료' : 'WELCOME'}</span>
+      <h2>${st.pick === 'air' ? 'Air로 바꿨어요' : `환영해요, ${esc(memberName())}님!`}</h2>
+      <p class="muted">${st.pick === 'air' ? '기본 기능은 그대로 쓸 수 있어요.' : `수행 내비 ${t.name} 멤버가 됐어요.${gained.length ? ` 새로 열린 기능 ${gained.length}개를 바로 써 보세요.` : ''}`}</p>
+      ${gained.length ? `<ul class="feat-list done-list">${gained.map((f, i) => `<li style="--i:${i}"><span class="ni-ico hue" style="--h:${TIERS[f.tier].h}">${icon(f.icon)}</span><span><b>${f.name}</b><small>${esc(f.desc)}</small></span></li>`).join('')}</ul>` : ''}</div>`;
+}
+function studioHtml() {
+  const st = studio, t = TIERS[st.pick], price = cyclePrice(st.pick, st.cycle), cur = state.plan;
+  const sameAll = st.pick === cur && st.finish === effMode();
+  const next = st.pick === cur ? (st.finish === effMode() ? '' : 'finish') : 'review';
+  return `<div class="studio" data-step="${st.step}" style="--h:${t.h}">
+    <div class="st-bg" aria-hidden="true"><i></i><i></i></div>
+    <header class="st-top"><span class="st-brand">${logoMark(26)}<b>수행 내비 멤버십</b></span>${st.step === 'run' ? '' : `<button class="btn btn-soft btn-icon btn-sm" data-act="studioClose" aria-label="닫기">${icon('x')}</button>`}</header>
+    <div class="st-body">
+      <section class="st-stage" id="st-stage">
+        <div class="st-float">${mcardHtml(st.pick, st.finish, { id: 'mcard', flip: st.step === 'done' && st.pick !== 'air' })}<div class="mc-shadow" aria-hidden="true"></div></div>
+        <div class="st-name"><span class="eyebrow">${t.tag}</span><h2>${t.name}</h2>
+          <div class="st-specs"><div><b class="num" id="st-feat" data-keep data-to="${featsOf(st.pick).length}">${featsOf(st.pick).length}</b><small>전용 기능</small></div><div><b>${t.quiz}</b><small>시험지</small></div><div><b class="num">${t.price ? won(t.price) : '0원'}</b><small>월 정가</small></div></div></div>
+      </section>
+      <aside class="st-panel"><div class="st-scroll" data-swap="${st.step}">${studioPanel()}</div>
+        ${st.step === 'build' ? `<footer class="st-foot"><div class="st-price"><b class="num" id="st-price" data-keep data-to="${price}">${price ? won(price) : '무료'}</b><small>${price ? (st.cycle === 'year' ? `연간 · 월 ${won(Math.round(price / 12))}꼴` : '월간 · 언제든 해지') : '기본 기능 모두'}</small></div>
+          ${sameAll ? '<span class="chip green">지금 쓰는 플랜</span>' : `<button class="btn btn-pri" data-act="${next === 'finish' ? 'studioFinishOnly' : 'studioNext'}">${next === 'finish' ? '앱 컬러 적용' : '계속'}${icon('next')}</button>`}</footer>`
+        : st.step === 'done' ? `<footer class="st-foot done-foot"><button class="btn btn-pri btn-block" data-act="studioDone">${st.pick === 'air' ? '확인' : '시작하기'}${icon('next')}</button></footer>` : ''}
+      </aside>
+    </div></div>`;
+}
+function renderStudio(fresh) {
+  const root = document.getElementById('studio-root');
+  if (!root) return;
+  if (!studio) {
+    const cur = root.firstElementChild;
+    if (!cur) return;
+    if (!motionOn()) { root.innerHTML = ''; return; }
+    cur.classList.add('closing'); setTimeout(() => { if (!studio) root.innerHTML = ''; }, 420 * mo());
+    return;
+  }
+  if (fresh || !root.firstElementChild || root.firstElementChild.classList.contains('closing')) root.innerHTML = studioHtml();
+  else morph(root, studioHtml());
+  const fmt = v => (v ? won(v) : '무료');
+  const pe = document.getElementById('st-price'); if (pe) tweenNum(pe, +pe.dataset.to, fmt);
+  const fe = document.getElementById('st-feat'); if (fe) tweenNum(fe, +fe.dataset.to, v => String(v));
+  fxAfterRender(); swapAnim(); swapped.length = 0;
+}
+function studioRun() {
+  const st = studio; if (!st || st.step !== 'review') return;
+  st.step = 'run'; st.phase = 0; renderStudio();
+  const m = motionOn() ? mo() : 0.15, steps = [650, 1300, 1950];
+  steps.forEach((ms, i) => studioT.push(setTimeout(() => { if (studio) { studio.phase = i + 1; renderStudio(); } }, ms * m)));
+  studioT.push(setTimeout(() => {
+    if (!studio) return;
+    const up = RANK[st.pick] > RANK[state.plan];
+    state.plan = st.pick;
+    state.member.cycle = st.cycle;
+    if (st.pick === 'air') { state.member.since = null; state.member.no = null; }
+    else if (up || !state.member.no) { state.member.since = today(); state.member.no = `SN-${today().slice(0, 4)}-${String(Math.floor(1000 + Math.random() * 9000))}`; }
+    state.look.mode = st.finish;
+    if (!has('themes')) state.look.theme = 'sunrise';
+    if (!has('focus')) { state.timer = null; soundStop(); }
+    save(); applyLook();
+    studio.step = 'done'; renderStudio(); render(); renderFocus();
+    if (st.pick !== 'air') {
+      const c = document.getElementById('mcard'), r = c && c.getBoundingClientRect();
+      studioT.push(setTimeout(() => confetti(r ? r.left + r.width / 2 : innerWidth / 2, r ? r.top + r.height / 2 : innerHeight / 3, 180), 380 * m));
+    }
+  }, 2500 * m));
+}
+/* tilt + light on the card follow the pointer */
+document.addEventListener('pointermove', e => {
+  if (!studio || e.pointerType === 'touch') return;
+  const stage = document.getElementById('st-stage'), card = document.getElementById('studio-root');
+  if (!stage || !card) return;
+  const r = stage.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+  if (x < 0 || x > 1 || y < 0 || y > 1) return;
+  card.style.setProperty('--ry', ((x - 0.5) * 18).toFixed(2) + 'deg');
+  card.style.setProperty('--rx', ((0.5 - y) * 14).toFixed(2) + 'deg');
+  card.style.setProperty('--mx', (x * 100).toFixed(1) + '%');
+  card.style.setProperty('--my', (y * 100).toFixed(1) + '%');
+}, { passive: true });
+/* slide to confirm */
+let slideDrag = null;
+document.addEventListener('pointerdown', e => {
+  const k = e.target.closest && e.target.closest('.sl-knob');
+  if (!k || !studio || studio.step !== 'review') return;
+  const tr = k.parentElement, r = tr.getBoundingClientRect();
+  slideDrag = { k, tr, x0: e.clientX, max: r.width - k.offsetWidth - 8, moved: false };
+  k.setPointerCapture(e.pointerId); tr.classList.add('dragging');
+});
+document.addEventListener('pointermove', e => {
+  if (!slideDrag) return;
+  const d = clamp(e.clientX - slideDrag.x0, 0, slideDrag.max);
+  if (d > 4) slideDrag.moved = true;
+  slideDrag.tr.style.setProperty('--x', d + 'px');
+  slideDrag.tr.style.setProperty('--p', (d / slideDrag.max).toFixed(3));
+});
+document.addEventListener('pointerup', () => {
+  if (!slideDrag) return;
+  const { tr, max } = slideDrag, d = parseFloat(tr.style.getPropertyValue('--x')) || 0, moved = slideDrag.moved;
+  slideDrag = null; tr.classList.remove('dragging');
+  if (d > max * 0.82) { tr.style.setProperty('--x', max + 'px'); tr.style.setProperty('--p', 1); tr.classList.add('done'); setTimeout(studioRun, 260); }
+  else { tr.style.setProperty('--x', '0px'); tr.style.setProperty('--p', 0); if (!moved) { tr.classList.remove('nudge'); void tr.offsetWidth; tr.classList.add('nudge'); } }
+});
 
 /* ---------- focus timer + soundscapes ---------- */
 let snd = null, focusTick = null;
@@ -89,12 +248,12 @@ function renderFocus() {
   const mmss = ms => { const s = Math.floor(Math.abs(ms) / 1000); return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`; };
   const r = 22, c = 2 * Math.PI * r;
   const a = find(tm.aid);
-  root.innerHTML = `<div class="focus glass${left < 0 ? ' over' : ''}" role="region" aria-label="포커스 타이머">
+  morph(root, `<div class="focus glass${left < 0 ? ' over' : ''}" role="region" aria-label="포커스 타이머">
     <svg class="f-ring hue" style="--h:${a ? hueOf(a.subject) : 214}" viewBox="0 0 54 54"><circle cx="27" cy="27" r="${r}" class="bg"/><circle cx="27" cy="27" r="${r}" class="fg" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - pct)).toFixed(1)}"/></svg>
     <div class="f-c"><small>${a ? esc(a.subject) + ' · ' : ''}${tm.pausedAt ? '잠시 멈춤' : left < 0 ? '시간 지남' : '집중 중'}</small><b>${esc(tm.name)}</b><span class="num f-time">${left < 0 ? '+' : ''}${mmss(left)}</span></div>
     <div class="f-act"><button class="btn btn-soft btn-icon btn-sm" data-act="focusPause" aria-label="${tm.pausedAt ? '다시 시작' : '멈춤'}">${icon(tm.pausedAt ? 'next' : 'stop')}</button><button class="btn btn-pri btn-icon btn-sm" data-act="focusDone" aria-label="다 했어요">${icon('check')}</button><button class="btn btn-soft btn-icon btn-sm" data-act="focusStop" aria-label="타이머 끄기">${icon('x')}</button></div>
     ${has('sound') ? `<div class="f-snd">${[['off', '소리 끔'], ['rain', '빗소리'], ['white', '백색'], ['brown', '브라운']].map(([k, l]) => `<button class="pill-btn" data-act="focusSound" data-arg="${k}" aria-pressed="${(tm.sound || 'off') === k}">${l}</button>`).join('')}</div>` : ''}
-  </div>`;
+  </div>`);
   if (left < 0 && !tm.rang) { tm.rang = true; save(); deliver({ id: 'focus:' + tm.startAt, at: Date.now(), kind: 'plan', title: '집중 시간이 끝났어요', body: `${tm.name} · 다 했으면 체크를 눌러요`, act: { type: 'card', arg: tm.aid } }, true); renderShell(); }
   if (!focusTick) focusTick = setInterval(renderFocus, 1000);
 }
@@ -210,10 +369,22 @@ function seasonSnapshot() { return JSON.parse(JSON.stringify({ school: state.sch
 function seasonApply(s) { state.school = s.school; state.academies = s.academies; Object.assign(state.settings, { schoolEnd: s.schoolEnd, weekendStart: s.weekendStart, dayEnd: s.dayEnd, cap: s.cap, weekendCap: s.weekendCap }); }
 
 const MEM_H = {
-  planPick(k) { memberPick = k; render(); },
+  studioOpen() { studioOpen(); },
+  studioClose() { studioClose(); },
+  studioPick(k) { if (studio && TIERS[k]) { studio.pick = k; renderStudio(); } },
+  studioCycle(c) { if (studio) { studio.cycle = c === 'year' ? 'year' : 'month'; renderStudio(); } },
+  studioFinish(m) { if (studio && MODES[m]) { studio.finish = m; previewMode(m); renderStudio(); } },
+  studioFinishOnly() { if (!studio) return; state.look.mode = studio.finish; save(); applyLook(); render(); studioClose(); toast(`${MODES[state.look.mode].name} 컬러를 입혔어요`); },
+  studioNext() { if (studio) { studio.step = 'review'; renderStudio(); } },
+  studioBack() { if (studio) { studio.step = 'build'; renderStudio(); } },
+  slideGo(arg, el, e) {
+    const tr = document.getElementById('slide'); if (!tr) return;
+    if (e && e.detail === 0) { tr.style.setProperty('--x', (tr.offsetWidth - el.offsetWidth - 8) + 'px'); tr.style.setProperty('--p', 1); tr.classList.add('done'); setTimeout(studioRun, 260); }
+  },
+  studioDone() { const st = studio; studioClose(); if (st) toast(st.pick === 'air' ? 'Air로 바꿨어요' : `수행 내비 ${TIERS[st.pick].name}를 시작했어요`); },
   planApply(k) {
     if (!TIERS[k]) return;
-    state.plan = k; memberPick = null;
+    state.plan = k;
     if (!has('themes')) state.look.theme = 'sunrise';
     if (!has('focus')) state.timer = null;
     applyLook(); save(); render(); renderFocus();
