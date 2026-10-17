@@ -189,6 +189,8 @@ async function makeHandout() {
 /* ---------- handlers ---------- */
 function setView(v) {
   if (v === 'more') { sheet = { kind: 'more' }; render(); return; }
+  if (v === 'week') v = 'calendar';
+  if (v === 'calendar') calScroll = null;
   if (v === 'capture' && cap.step === 4) capReset();
   state.view = v; state.detail = null; editing = null; sheet = null;
   try { history.replaceState(null, '', '#' + v); } catch (e) { /* hash not writable here */ }
@@ -272,7 +274,27 @@ const H = {
   capSave() { capSave(); },
   capRestart() { capReset(); render(); goTop(); },
   unmask(arg) { const [i, j] = arg.split(':').map(Number); if (cap.images[i]) { cap.images[i].boxes.splice(j, 1); render(); } },
-  weekNav(n) { state.weekOffset = +n === 0 ? 0 : state.weekOffset + +n; save(); render(); },
+  calWeek() { state.cal.view = 'week'; state.cal.date = today(); state.cal.q = ''; setView('calendar'); },
+  railToggle() { state.rail = !state.rail; save(); render(); setTimeout(setupLens, 300); },
+  periodAdd() {
+    const p = state.school.periods, last = p[p.length - 1] || [480, 525];
+    p.push([last[1] + 10, Math.min(1430, last[1] + 55)]);
+    save(); render();
+  },
+  periodDel() {
+    if (state.school.periods.length <= 1) return;
+    state.school.periods.pop();
+    for (const wd of [1, 2, 3, 4, 5]) if (state.school.grid[wd]) state.school.grid[wd].length = Math.min(state.school.grid[wd].length, state.school.periods.length);
+    save(); render();
+  },
+  schoolFit() {
+    for (let i = 0; i < 5; i++) {
+      const row = state.school.grid[i + 1] || [];
+      let last = -1; row.forEach((v, j) => { if (v && j < state.school.periods.length) last = j; });
+      if (last >= 0) state.settings.schoolEnd[i] = Math.min(1380, state.school.periods[last][1] + 15);
+    }
+    save(); render(); toast('하교 시간을 시간표에 맞췄어요');
+  },
   addAcademy() { state.academies.push({ id: uid('ac'), label: '새 학원', days: [1], start: 1080, end: 1200 }); save(); render(); },
   delAcademy(id) { state.academies = state.academies.filter(a => a.id !== id); save(); render(); },
   toggleDay(arg) {
@@ -285,7 +307,12 @@ const H = {
   setFocus(v) { state.settings.focus = v; save(); render(); toast(`${FOCUS[v].label} 시간에 먼저 계획해요`); },
   setTone(v) { state.settings.tone = v; save(); render(); },
   setSolid(v) { state.settings.solid = v === 'solid'; save(); render(); setupLens(); },
-  reseed() { const ids = new Set(state.cards.map(a => a.id)); state.cards.push(...seedCards().filter(a => !ids.has(a.id))); save(); render(); toast('예시 카드를 넣었어요'); },
+  reseed() {
+    const ids = new Set(state.cards.map(a => a.id)), eids = new Set(state.events.map(e => e.id));
+    state.cards.push(...seedCards().filter(a => !ids.has(a.id)));
+    state.events.push(...seedEvents().filter(e => !eids.has(e.id)));
+    save(); render(); toast('예시 카드와 일정을 넣었어요');
+  },
   copyData() { copyText(JSON.stringify({ cards: state.cards, academies: state.academies, settings: state.settings }, null, 2)); },
   resetAll() {
     if (confirmKey !== 'reset') { arm('reset'); return; }
@@ -297,13 +324,19 @@ const H = {
   clearLog() { if (confirmKey !== 'log') { arm('log'); return; } confirmKey = null; state.log = []; save(); render(); },
   copyLog() { copyText(logTSV(), document.getElementById('log-table')); },
   copyPrompt(k) { if (P[k]) copyText(P[k].tpl, document.getElementById('pre-' + k)); },
-  clearExamples() { state.cards = state.cards.filter(a => !a.example); save(); render(); toast('예시 카드를 지웠어요'); },
+  clearExamples() { state.cards = state.cards.filter(a => !a.example); state.events = state.events.filter(e => !e.example); save(); render(); toast('예시 카드와 일정을 지웠어요'); },
   photo(id) { sheet = { kind: 'photo', id }; render(); },
   closeSheet() { sheet = null; render(); },
   scrim(arg, el, e) { if (e.target === el) { sheet = null; render(); } }
 };
 
+Object.assign(H, CAL_H, NOTI_H);
+
 /* ---------- events ---------- */
+document.addEventListener('dblclick', e => {
+  const c = e.target.closest && e.target.closest('.mv-cell[data-day]');
+  if (c) H.calOpenDay(c.dataset.day);
+});
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el || el.disabled) return;
@@ -313,18 +346,43 @@ document.addEventListener('click', e => {
   fn(el.dataset.arg || '', el, e);
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && sheet) { sheet = null; render(); return; }
+  if (e.key === 'Escape' && sheet) { sheet = null; evDraft = null; render(); return; }
   const t = e.target;
   if ((e.key === 'Enter' || e.key === ' ') && t.matches && t.matches('[role="button"][data-act]')) { e.preventDefault(); t.click(); return; }
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
     if (t.id === 'chat-in') { e.preventDefault(); H.chatSend(); }
+    else if (t.id === 'quick-in') { e.preventDefault(); H.quickAdd(); }
     else if (t.dataset && t.dataset.cq) { e.preventDefault(); H.cardSend(t.dataset.cq); }
+    else if (t.id === 'evd-title' || t.id === 'evd-location') { e.preventDefault(); H.evSave(); }
+    else if (t.id === 'nc-name') { e.preventDefault(); H.calCreate(); }
+    return;
   }
+  // calendar shortcuts, like Apple Calendar: T today, ←/→, D W M Y L, N new
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || '');
+  if (typing || sheet || e.metaKey || e.ctrlKey || e.altKey || state.view !== 'calendar' || state.detail) return;
+  const k = e.key.toLowerCase();
+  if (k === 't') H.calNav('0');
+  else if (e.key === 'ArrowLeft') H.calNav('-1');
+  else if (e.key === 'ArrowRight') H.calNav('1');
+  else if ({ d: 1, w: 1, m: 1, y: 1, l: 1 }[k]) H.calView({ d: 'day', w: 'week', m: 'month', y: 'year', l: 'list' }[k]);
+  else if (k === 'n') { e.preventDefault(); H.newEvent(); }
 });
 document.addEventListener('input', e => {
   const el = e.target, d = el.dataset || {};
   if (d.bind === 'capText') { cap.text = el.value; errors.read = null; }
   else if (d.bind === 'chatDraft') chatDraft = el.value;
+  else if (d.bind === 'quick') { quickText = el.value; const p = document.getElementById('q-prev'); if (p) p.innerHTML = calQuickPreview(); }
+  else if (d.bind === 'calQ') { state.cal.q = el.value; render(); }
+  else if (d.bind === 'ncName') { if (sheet) sheet.name = el.value; }
+  else if (d.evd && evDraft) {
+    const k = d.evd, v = el.value;
+    if (k === 'start' || k === 'end') { if (v) { evDraft[k] = toMin(v); if (k === 'start' && evDraft.end <= evDraft.start) evDraft.end = Math.min(1439, evDraft.start + 60); } }
+    else if (k === 'travel' || k === 'a1' || k === 'a2') evDraft[k] = +v;
+    else evDraft[k] = v;
+    if (k === 'date' && v && diffDays(v, evDraft.endDate || v) < 0) evDraft.endDate = v;
+    evDraft.err = null;
+  }
+  else if (d.sg) { const [wd, i] = d.sg.split(':').map(Number); const row = state.school.grid[wd] || (state.school.grid[wd] = []); while (row.length <= i) row.push(''); row[i] = el.value.trim(); el.classList.toggle('hue', !!row[i]); el.style.setProperty('--h', hueOf(row[i])); save(); }
   else if (d.cf) { const [i, k] = d.cf.split(':'); const it = cap.items[+i]; if (it) { it.f[k] = el.value; it.err = null; } }
   else if (d.edit && editing) editing.f[d.edit] = el.value;
   else if (d.cq) cardDrafts[d.cq] = el.value;
@@ -343,6 +401,19 @@ document.addEventListener('change', async e => {
     return;
   }
   if (d.cf || d.edit) { const [i, k] = (d.cf || '').split(':'); if (d.cf && cap.items[+i]) cap.items[+i].f[k] = el.value; if (d.edit && editing) editing.f[d.edit] = el.value; return; }
+  if (d.evd) { if (['freq', 'a1', 'date', 'start'].includes(d.evd)) render(); return; }
+  if (d.sg) { render(); return; }
+  if (d.sp && el.value) {
+    const [i, j] = d.sp.split(':').map(Number), p = state.school.periods[i];
+    if (p) { p[j] = toMin(el.value); if (p[1] <= p[0]) p[1] = Math.min(1439, p[0] + 45); save(); render(); }
+    return;
+  }
+  if (d.noti) {
+    const k = d.noti;
+    if (k === 'step') state.notif.step = +el.value;
+    else if (el.value) state.notif[k] = toMin(el.value);
+    save(); render(); return;
+  }
   if (d.text) { render(); return; }
   if (d.se != null && el.value) { state.settings.schoolEnd[+d.se] = toMin(el.value); save(); render(); return; }
   if (d.set) {
@@ -443,7 +514,7 @@ function lensFor(el, n) {
   if (!f) { f = document.createElementNS('http://www.w3.org/2000/svg', 'filter'); f.id = id; defs.appendChild(f); }
   f.setAttribute('x', '0'); f.setAttribute('y', '0'); f.setAttribute('width', w); f.setAttribute('height', h);
   f.setAttribute('filterUnits', 'userSpaceOnUse'); f.setAttribute('color-interpolation-filters', 'sRGB');
-  f.innerHTML = `<feImage href="${lensMap(w, h, radius, Math.min(18, h / 3))}" x="0" y="0" width="${w}" height="${h}" result="map" preserveAspectRatio="none"/><feDisplacementMap in="SourceGraphic" in2="map" scale="${Math.min(40, h / 2)}" xChannelSelector="R" yChannelSelector="G"/>`;
+  f.innerHTML = `<feImage href="${lensMap(w, h, radius, Math.min(14, h / 4))}" x="0" y="0" width="${w}" height="${h}" result="map" preserveAspectRatio="none"/><feDisplacementMap in="SourceGraphic" in2="map" scale="${Math.min(14, h / 5)}" xChannelSelector="R" yChannelSelector="G"/>`;
   el.style.setProperty('--lens', `url(#${id})`);
   el.setAttribute('data-lens-on', '');
 }
@@ -467,4 +538,17 @@ if (lensOK && 'ResizeObserver' in window) {
   initAI();
   render();
   setupLens();
+  tickNotifs();
+  setInterval(tickNotifs, 15000);
+  // keep the now-line and today's list honest while the page stays open
+  setInterval(() => { if (!sheet && !document.activeElement?.matches?.('input,textarea,select')) render(); }, 60000);
+  let w = innerWidth, rt = null;
+  addEventListener('resize', () => {
+    clearTimeout(rt);
+    rt = setTimeout(() => {
+      const crossed = [700, 861, 1200].some(b => (w < b) !== (innerWidth < b));
+      w = innerWidth;
+      if (crossed) { calScroll = null; render(); } else renderShell();
+    }, 120);
+  });
 })();

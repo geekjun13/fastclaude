@@ -72,6 +72,7 @@ function viewSettings() {
     <section class="sec"><div class="sec-h"><h2><span class="ico hue" style="--h:330">${icon('chat')}</span>알림 말투</h2></div>
       <div class="opts">${Object.entries(TONES).map(([k, t]) => opt('setTone', k, s.tone, t.label, t.desc)).join('')}</div>
       <div class="note" style="max-width:420px"><small>미리 보기 · 못 한 날 받는 메시지</small>${esc(TONES[s.tone].sample)}</div></section>
+    <section class="sec" id="notif-settings"><div class="sec-h"><h2><span class="ico hue" style="--h:8">${icon('bell')}</span>알림</h2></div>${notifSettingsHtml()}</section>
     <section class="sec"><div class="sec-h"><h2><span class="ico hue" style="--h:196">${icon('spark')}</span>화면</h2></div>
       <div class="opts">${opt('setSolid', 'glass', s.solid ? 'solid' : 'glass', '부드러운 유리', '사이드바와 탭 막대가 뒤를 은은하게 비쳐요')}${opt('setSolid', 'solid', s.solid ? 'solid' : 'glass', '불투명', '유리 효과 없이 또렷하게 보여요')}</div></section>
     <section class="sec"><div class="sec-h"><h2><span class="ico hue" style="--h:150">${icon('board')}</span>데이터</h2></div>
@@ -131,4 +132,4 @@ function viewChat() {
   };
 }
 
-const VIEWS = { today: viewToday, board: viewBoard, week: viewWeek, capture: viewCapture, timetable: viewTimetable, progress: viewProgress, settings: viewSettings, prompts: viewPrompts, chat: viewChat };
+const VIEWS = { today: viewToday, board: viewBoard, calendar: () => viewCalendar(), capture: viewCapture, timetable: viewTimetable, progress: viewProgress, settings: viewSettings, prompts: viewPrompts, chat: viewChat };

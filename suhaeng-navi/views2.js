@@ -91,64 +91,30 @@ function viewCapture() {
   return { title: '새 수행 카드', sub: '공지 사진 한 장이 수행 카드 한 장이 돼요', body: `${stepper()}${body}` };
 }
 
-/* ---------- 주간 계획 ---------- */
-const WK_START = 540, WK_END = 1440, WK_PX = 40 / 60;
-function viewWeek() {
-  const t = today(), m0 = addDays(mondayOf(t), 7 * state.weekOffset), blocks = allBlocks();
-  const wc = weekCounts(), crunch = (wc[m0] || []).length >= 3;
-  const H = (WK_END - WK_START) * WK_PX;
-  const top = m => Math.max(0, (m - WK_START) * WK_PX);
-  const hgt = (s, e) => Math.max(14, (Math.min(e, WK_END) - Math.max(s, WK_START)) * WK_PX);
-  let head = '<div class="wk-hd" style="min-height:84px"></div>', cols = '';
-  for (let i = 0; i < 7; i++) {
-    const d = addDays(m0, i);
-    const dues = state.cards.filter(a => a.due === d);
-    head += `<div class="wk-hd${d === t ? ' today' : ''}${crunch ? ' crunch' : ''}"><small>${WD[dow(d)]}</small><b>${parseYmd(d).getDate()}</b>${dues.map(a => `<button class="due-flag hue" style="${hueVar(a.subject)}" data-act="open" data-arg="${a.id}">${icon('flag')}${esc(a.subject)} 마감</button>`).join('')}</div>`;
-    let inner = '';
-    if (!isWeekend(d)) { const se = state.settings.schoolEnd[dow(d) - 1]; inner += `<div class="blk school" style="top:0;height:${hgt(WK_START, se)}px">학교 ~${hm(se)}</div>`; }
-    for (const [s, e, label] of busyFor(d)) inner += `<div class="blk aca" style="top:${top(s)}px;height:${hgt(s, e)}px">${esc(label)}</div>`;
-    for (const b of blocks.filter(x => x.date === d)) {
-      const a = find(b.aid), s = a.steps[b.step];
-      inner += `<button class="blk plan hue${hgt(b.start, b.end) < 34 ? ' short' : ''}" style="${hueVar(a.subject)};top:${top(b.start)}px;height:${hgt(b.start, b.end)}px" data-act="openPlan" data-arg="${a.id}" title="${esc(a.subject + ' · ' + s.name)}"><b>${hm(b.start)}</b>${esc(a.subject)} · ${esc(s.name)}</button>`;
-    }
-    if (d === t) { const n = nowMin(); if (n > WK_START && n < WK_END) inner += `<div class="now-line" style="top:${top(n)}px"></div>`; }
-    cols += `<div class="wk-col${d === t ? ' today' : ''}" style="height:${H}px">${inner}</div>`;
-  }
-  let axis = '';
-  for (let h = WK_START / 60 + 1; h < WK_END / 60; h++) axis += `<span style="top:${(h * 60 - WK_START) * WK_PX}px">${h}</span>`;
-  const planned = blocks.filter(b => diffDays(m0, b.date) >= 0 && diffDays(b.date, addDays(m0, 6)) >= 0);
-  const mins = planned.reduce((n, b) => n + b.end - b.start, 0);
-  return {
-    title: '주간 계획', sub: `${mdShort(m0)} – ${mdShort(addDays(m0, 6))} · 계획 ${planned.length}개 · ${dur(mins) || '0분'}`,
-    actions: `<button class="btn btn-soft btn-icon btn-sm" data-act="weekNav" data-arg="-1" aria-label="지난주">${icon('back')}</button><button class="btn btn-soft btn-sm" data-act="weekNav" data-arg="0">이번 주</button><button class="btn btn-soft btn-icon btn-sm" data-act="weekNav" data-arg="1" aria-label="다음 주">${icon('next')}</button>`,
-    body: `
-    <div class="row-sb"><div class="row"><span class="chip"><i style="width:10px;height:10px;border-radius:3px;background:var(--sunk-2)"></i>학교</span><span class="chip"><i style="width:10px;height:10px;border-radius:3px;background:repeating-linear-gradient(135deg,var(--ink-3) 0 2px,transparent 2px 4px)"></i>학원·이동</span><span class="chip blue">수행 계획</span><span class="chip orange">${icon('flag')}마감</span></div></div>
-    ${crunch ? `<div class="alert-card"><span class="a-ico">${icon('flame')}</span><div><h3>이번에 보는 주에 수행평가 ${(wc[m0] || []).length}개가 몰려 있어요</h3><p>${(wc[m0] || []).map(a => esc(a.subject)).join(' · ')} — 각 카드의 계획은 이 주보다 먼저 시작하게 잡혀 있어요.</p></div></div>` : ''}
-    <div class="row mweek"><button class="btn btn-soft btn-icon btn-sm" data-act="weekNav" data-arg="-1" aria-label="지난주">${icon('back')}</button><button class="btn btn-soft btn-sm" data-act="weekNav" data-arg="0">이번 주</button><button class="btn btn-soft btn-icon btn-sm" data-act="weekNav" data-arg="1" aria-label="다음 주">${icon('next')}</button></div>
-    <div class="wk-scroll" id="wk-scroll"><div class="wk-grid">${head}<div class="wk-axis" style="height:${H}px">${axis}</div>${cols}</div></div>
-    <p class="small faint">계획 블록을 누르면 수행 카드의 역산 계획으로 가요. 학교와 학원 시간은 시간표 화면에서 바꿀 수 있어요.</p>`,
-    after() {
-      const sc = document.getElementById('wk-scroll');
-      if (sc && state.weekOffset === 0 && sc.scrollWidth > sc.clientWidth) {
-        const i = (dow(t) + 6) % 7;
-        sc.scrollLeft = Math.max(0, 46 + i * (sc.scrollWidth - 46) / 7 - 20);
-      }
-    }
-  };
-}
-
 /* ---------- 시간표 ---------- */
 let ttDraft = null; // academies proposed by the AI, waiting for the student
+function schoolTable() {
+  const sc = state.school;
+  const rows = sc.periods.map(([a, b], i) => `<tr><th class="num">${i + 1}</th>
+    <td class="tt-time"><input class="input" type="time" id="sp-${i}-0" data-sp="${i}:0" value="${hm(a)}" aria-label="${i + 1}교시 시작"><input class="input" type="time" id="sp-${i}-1" data-sp="${i}:1" value="${hm(b)}" aria-label="${i + 1}교시 끝"></td>
+    ${[1, 2, 3, 4, 5].map(wd => { const v = (sc.grid[wd] || [])[i] || ''; return `<td><input class="tt-in${v ? ' hue' : ''}" style="--h:${hueOf(v)}" id="sg-${wd}-${i}" data-sg="${wd}:${i}" value="${esc(v)}" placeholder="—" aria-label="${WD[wd]}요일 ${i + 1}교시"></td>`; }).join('')}</tr>`).join('');
+  return `<div class="tt-scroll"><table class="tt"><thead><tr><th>교시</th><th>시간</th>${['월', '화', '수', '목', '금'].map(d => `<th>${d}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
 function viewTimetable() {
   const s = state.settings;
   const tf = (id, attr, v) => `<input class="input" type="time" id="${id}" ${attr} value="${hm(v)}">`;
   const nf = (k, label, lo, hi) => `<label class="field"><span>${label}</span><input class="input" type="number" id="set-${k}" data-set="${k}" min="${lo}" max="${hi}" step="10" value="${s[k]}"></label>`;
   return {
-    title: '시간표', sub: '역산 플래너는 이 시간을 피해서 빈 시간에만 계획을 넣어요',
+    title: '시간표', sub: '학교와 학원 시간을 등록하면 캘린더에 보이고, 계획은 이 시간을 피해서 넣어요',
     body: `
-    <section class="sec"><div class="sec-h"><h2><span class="ico hue" style="--h:40">${icon('board')}</span>학교 끝나는 시간</h2></div>
+    <section class="sec"><div class="sec-h"><h2><span class="ico hue" style="--h:40">${icon('board')}</span>학교 시간표</h2>
+      <div class="row"><button class="btn btn-soft btn-sm" data-act="periodDel" ${state.school.periods.length <= 1 ? 'disabled' : ''}>교시 빼기</button><button class="btn btn-soft btn-sm" data-act="periodAdd" ${state.school.periods.length >= 9 ? 'disabled' : ''}>${icon('plus')}교시 추가</button></div></div>
+      ${schoolTable()}
+      <p class="small faint">과목을 적으면 캘린더의 '학교 시간표'에 교시별로 보여요. 빈칸은 수업이 없는 교시예요.</p></section>
+    <section class="sec"><div class="sec-h"><h2><span class="ico hue" style="--h:20">${icon('sun')}</span>학교 끝나는 시간</h2><button class="btn btn-line btn-sm" data-act="schoolFit">${icon('spark')}시간표에 맞추기</button></div>
       <div class="cell pad stack"><div class="days5">${['월', '화', '수', '목', '금'].map((d, i) => `<label class="field"><span>${d}요일</span>${tf('se-' + i, `data-se="${i}"`, s.schoolEnd[i])}</label>`).join('')}</div>
-      <div class="grid g3"><label class="field"><span>주말 시작</span>${tf('set-weekendStart', 'data-set="weekendStart"', s.weekendStart)}</label><label class="field"><span>공부 마감</span>${tf('set-dayEnd', 'data-set="dayEnd"', s.dayEnd)}</label></div></div></section>
+      <div class="grid g3"><label class="field"><span>주말 시작</span>${tf('set-weekendStart', 'data-set="weekendStart"', s.weekendStart)}</label><label class="field"><span>공부 마감</span>${tf('set-dayEnd', 'data-set="dayEnd"', s.dayEnd)}</label></div>
+      <p class="small faint">'시간표에 맞추기'는 요일마다 마지막 교시가 끝나고 종례 15분 뒤로 맞춰요.</p></div></section>
     <section class="sec"><div class="sec-h"><h2><span class="ico hue" style="--h:262">${icon('clock')}</span>학원 시간표</h2>
       <div class="row"><label class="btn btn-line btn-sm" for="tt-file">${icon('image')}사진으로 입력</label><input id="tt-file" type="file" accept="image/*" hidden><button class="btn btn-pri btn-sm" data-act="addAcademy">${icon('plus')}학원 추가</button></div></div>
       ${busyRow('timetable')}${errRow('timetable')}
@@ -161,6 +127,6 @@ function viewTimetable() {
     </section>
     <section class="sec"><div class="sec-h"><h2><span class="ico hue" style="--h:152">${icon('route')}</span>수행에 쓸 시간</h2></div>
       <div class="cell pad grid g3">${nf('cap', '평일 하루 최대 (분)', 30, 240)}${nf('weekendCap', '주말 하루 최대 (분)', 30, 360)}${nf('travel', '학원 이동 시간 (분)', 0, 60)}</div>
-      <p class="small faint">집중이 잘 되는 시간은 나의 설정에서 고를 수 있어요. 지금은 <b>${esc(FOCUS[s.focus].label)}</b> 시간에 먼저 넣어요.</p></section>`
+      <p class="small faint">집중이 잘 되는 시간은 나의 설정에서 고를 수 있어요. 지금은 <b>${esc(FOCUS[s.focus].label)}</b> 시간에 먼저 넣고, 캘린더의 개인 일정도 피해서 계획해요.</p></section>`
   };
 }

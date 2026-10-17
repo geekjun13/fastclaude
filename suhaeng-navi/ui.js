@@ -78,7 +78,7 @@ function toast(text) {
 
 /* ---------- shell ---------- */
 const NAV = [
-  { group: '수행', items: [{ id: 'today', label: '오늘', icon: 'sun', h: 44 }, { id: 'board', label: '수행 보드', icon: 'board', h: 214 }, { id: 'week', label: '주간 계획', icon: 'calendar', h: 152 }] },
+  { group: '수행', items: [{ id: 'today', label: '오늘', icon: 'sun', h: 44 }, { id: 'board', label: '수행 보드', icon: 'board', h: 214 }, { id: 'calendar', label: '캘린더', icon: 'calendar', h: 4 }] },
   { group: '내 정보', items: [{ id: 'timetable', label: '시간표', icon: 'clock', h: 262 }, { id: 'progress', label: '진행 기록', icon: 'chart', h: 330 }] },
   { group: 'AI', items: [{ id: 'chat', label: '내비에게 묻기', icon: 'spark', h: 28 }, { id: 'prompts', label: '프롬프트', icon: 'book', h: 196 }] }
 ];
@@ -86,41 +86,59 @@ function navBadge(id) {
   const t = today();
   if (id === 'today') { const n = skippedToday() ? 0 : allBlocks().filter(b => b.date === t).length; return n ? `<span class="ni-badge">${n}</span>` : ''; }
   if (id === 'board') { const n = state.cards.filter(a => a.due && diffDays(t, a.due) >= 0).length; return n ? `<span class="ni-badge">${n}</span>` : ''; }
-  if (id === 'week') return crunchWeeks().length ? '<span class="ni-badge hot">!</span>' : '';
+  if (id === 'calendar') return crunchWeeks().length ? '<span class="ni-badge hot" title="몰림 경보">!</span>' : '';
   return '';
 }
+const railOn = () => innerWidth >= 861 && (state.rail || innerWidth < 1200);
 const currentNav = () => (state.detail ? 'board' : state.view);
 function renderShell() {
   const cur = currentNav();
+  const rail = railOn();
+  document.body.classList.toggle('rail', rail);
   $('#nav').innerHTML = NAV.map(g => `<div class="nav-group"><div class="nav-label">${g.group}</div>${g.items.map(it =>
-    `<button class="nav-item" data-act="go" data-arg="${it.id}" ${cur === it.id ? 'aria-current="page"' : ''}><span class="ni-ico hue" style="--h:${it.h}">${icon(it.icon)}</span><span class="ni-text">${it.label}</span>${navBadge(it.id)}</button>`).join('')}</div>`).join('');
+    `<button class="nav-item" data-act="go" data-arg="${it.id}" ${cur === it.id ? 'aria-current="page"' : ''} title="${it.label}"><span class="ni-ico hue" style="--h:${it.h}">${icon(it.icon)}</span><span class="ni-text">${it.label}</span>${navBadge(it.id)}</button>`).join('')}</div>`).join('');
   const pill = { pending: 'AI 확인 중', ready: 'AI 연결됨', off: 'AI 없음 · 예시 모드', denied: 'AI 꺼짐' }[aiState];
-  $('#side-foot').innerHTML = `<span class="ai-pill ${aiState}"><i></i>${pill}</span>
-    <button class="me" data-act="go" data-arg="settings" ${cur === 'settings' ? 'aria-current="page"' : ''}><span class="avatar">${esc((state.settings.name || '나').slice(0, 1))}</span><span style="flex:1;min-width:0"><b>${esc(state.settings.name || '나')}</b><small>${esc(state.settings.grade || '나의 설정')}</small></span>${icon('gear')}</button>`;
+  $('#side-foot').innerHTML = `<div class="row-sb side-meta"><span class="ai-pill ${aiState}" title="${pill}"><i></i><span class="ap-t">${pill}</span></span>${innerWidth >= 1200 ? `<button class="btn btn-soft btn-icon btn-sm" data-act="railToggle" aria-label="${rail ? '사이드바 펼치기' : '사이드바 접기'}" title="${rail ? '펼치기' : '접기'}">${icon(rail ? 'next' : 'back')}</button>` : ''}</div>
+    <button class="me" data-act="go" data-arg="settings" ${cur === 'settings' ? 'aria-current="page"' : ''} title="나의 설정"><span class="avatar">${esc((state.settings.name || '나').slice(0, 1))}</span><span class="me-t"><b>${esc(state.settings.name || '나')}</b><small>${esc(state.settings.grade || '나의 설정')}</small></span>${icon('gear')}</button>`;
   document.querySelectorAll('.mt-item').forEach(b => {
-    const on = b.dataset.arg === cur || (b.dataset.arg === 'more' && !['today', 'board', 'week', 'capture'].includes(cur));
+    const on = b.dataset.arg === cur || (b.dataset.arg === 'more' && !['today', 'board', 'calendar', 'capture'].includes(cur));
     if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
-  const mp = $('#m-ai');
-  mp.className = 'ai-pill ' + aiState;
-  mp.innerHTML = `<i></i>${aiState === 'ready' ? 'AI' : '예시'}`;
+  $('#tb-bell').innerHTML = bellBtn(false);
+  $('#m-bell').innerHTML = bellBtn(true);
 }
 
 /* ---------- sheets (glass, modal) ---------- */
-let sheet = null;
+let sheet = null, lastSheet = null;
+const SHEETS = {
+  more() {
+    const items = [...NAV[1].items, ...NAV[2].items, { id: 'settings', label: '나의 설정', icon: 'gear', h: 220 }];
+    const pill = { pending: 'AI 확인 중', ready: 'AI 연결됨', off: 'AI 없음 · 예시 모드', denied: 'AI 꺼짐' }[aiState];
+    return { html: `<div class="sheet-h"><h3>더 보기</h3><button class="btn btn-soft btn-icon btn-sm" data-act="closeSheet" aria-label="닫기">${icon('x')}</button></div>
+      <div class="stack-s">${items.map(it => `<button class="nav-item" data-act="go" data-arg="${it.id}"><span class="ni-ico hue" style="--h:${it.h}">${icon(it.icon)}</span><span class="ni-text">${it.label}</span>${icon('next')}</button>`).join('')}</div>
+      <span class="ai-pill ${aiState}"><i></i>${pill}</span>` };
+  },
+  photo(sh) {
+    return { cls: 'wide', html: `<div class="sheet-h"><h3>원본 공지 사진</h3><button class="btn btn-soft btn-icon btn-sm" data-act="closeSheet" aria-label="닫기">${icon('x')}</button></div>
+      <div class="lightbox"><img data-photo="${esc(sh.id)}" alt="개인정보를 가린 공지 사진"></div><p class="small faint">이름과 학번은 저장하기 전에 가렸어요. 사진은 이 기기에만 있어요.</p>` };
+  }
+};
 function renderSheet() {
   const root = $('#sheet-root');
-  if (!sheet) { root.innerHTML = ''; return; }
-  let body = '';
-  if (sheet.kind === 'more') {
-    const items = [...NAV[1].items, ...NAV[2].items, { id: 'settings', label: '나의 설정', icon: 'gear', h: 220 }];
-    body = `<div class="sheet-h"><h3>더 보기</h3><button class="btn btn-soft btn-icon btn-sm" data-act="closeSheet" aria-label="닫기">${icon('x')}</button></div>
-      <div class="stack-s">${items.map(it => `<button class="nav-item" data-act="go" data-arg="${it.id}"><span class="ni-ico hue" style="--h:${it.h}">${icon(it.icon)}</span><span class="ni-text">${it.label}</span>${icon('next')}</button>`).join('')}</div>`;
-  } else if (sheet.kind === 'photo') {
-    body = `<div class="sheet-h"><h3>원본 공지 사진</h3><button class="btn btn-soft btn-icon btn-sm" data-act="closeSheet" aria-label="닫기">${icon('x')}</button></div>
-      <div class="lightbox"><img data-photo="${esc(sheet.id)}" alt="개인정보를 가린 공지 사진"></div><p class="small faint">이름과 학번은 저장하기 전에 가렸어요. 사진은 이 기기에만 있어요.</p>`;
+  if (!sheet || !SHEETS[sheet.kind]) { root.innerHTML = ''; lastSheet = null; return; }
+  const r = SHEETS[sheet.kind](sheet);
+  const still = lastSheet === sheet.kind ? ' still' : '';
+  lastSheet = sheet.kind;
+  if (r.pop && innerWidth >= 700 && sheet.x != null) {
+    const w = Math.min(360, innerWidth - 24);
+    const x = sheet.x + 14 + w > innerWidth - 12 ? Math.max(12, sheet.x - w - 14) : sheet.x + 14;
+    root.innerHTML = `<div class="scrim clear${still}" data-act="scrim"><div class="pop glass${still}" role="dialog" aria-modal="true" style="left:${x}px;top:${Math.max(12, sheet.y - 40)}px;width:${w}px">${r.html}</div></div>`;
+    const p = root.querySelector('.pop'), rect = p.getBoundingClientRect();
+    if (rect.bottom > innerHeight - 12) p.style.top = Math.max(12, innerHeight - 12 - rect.height) + 'px';
+    return;
   }
-  root.innerHTML = `<div class="scrim" data-act="scrim"><div class="sheet glass${sheet.kind === 'photo' ? ' wide' : ''}" role="dialog" aria-modal="true">${body}</div></div>`;
+  const side = r.side && innerWidth >= 861;
+  root.innerHTML = `<div class="scrim${side ? ' right' : ''}${still}" data-act="scrim"><div class="sheet glass${side ? ' side-panel' : r.cls ? ' ' + r.cls : ''}${still}" role="dialog" aria-modal="true">${r.html}</div></div>`;
 }
 
 /* ---------- render loop ---------- */

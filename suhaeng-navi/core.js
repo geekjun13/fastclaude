@@ -2,7 +2,7 @@
 /* 수행 내비 — core: constants, prompts, dates, storage, examples, planner.
    Shared by the other scripts through the global scope. */
 
-const KEY = 'suhaeng-navi:v2';
+const KEY = 'suhaeng-navi:v3', OLD_KEY = 'suhaeng-navi:v2';
 const WD = ['일', '월', '화', '수', '목', '금', '토'];
 const FIELD_LABEL = { subject: '과목', type: '유형', title: '이름', due: '마감', dueTime: '시간', method: '제출', materials: '준비물', rubric: '채점 기준', weight: '반영 비율' };
 const ACC_FIELDS = ['subject', 'type', 'title', 'due', 'method', 'materials', 'rubric'];
@@ -26,9 +26,10 @@ const TONES = {
 };
 const DEF_SETTINGS = {
   name: '지민', grade: '중학교 3학년',
-  schoolEnd: [990, 990, 990, 930, 990], weekendStart: 600, dayEnd: 1380,
+  schoolEnd: [980, 980, 980, 925, 980], weekendStart: 600, dayEnd: 1380,
   cap: 90, weekendCap: 150, travel: 15, focus: 'evening', tone: 'friend', solid: false
 };
+const DEF_NOTIF = { on: true, events: true, step: 10, dueEve: true, dueMorning: true, academy: true, crunch: true, quiet: true, quietStart: 1380, quietEnd: 420, sound: false };
 
 /* ---------- prompts: the app sends exactly these ---------- */
 const P = {
@@ -302,9 +303,11 @@ const defaultAcademies = () => [
 
 /* ---------- state ---------- */
 function fresh() {
-  return { v: 2, cards: seedCards(), settings: { ...DEF_SETTINGS, schoolEnd: DEF_SETTINGS.schoolEnd.slice() }, academies: defaultAcademies(),
+  return { v: 3, cards: seedCards(), settings: { ...DEF_SETTINGS, schoolEnd: DEF_SETTINGS.schoolEnd.slice() }, academies: defaultAcademies(),
+           calendars: DEFAULT_CALS(), events: seedEvents(), school: DEFAULT_SCHOOL(),
+           notif: { ...DEF_NOTIF }, inbox: [], fired: {}, snoozes: [],
            log: [], skips: [], chat: [], cheer: null, view: 'today', detail: null, detailTab: 'check',
-           boardFilter: 'open', boardSubject: '', weekOffset: 0 };
+           boardFilter: 'open', boardSubject: '', cal: { view: 'week', date: today(), q: '' }, rail: false };
 }
 function normalizeCard(a) {
   return { checked: {}, checklist: null, steps: [], chat: [], photoIds: [], materials: [], rubric: [], type: '', ...a,
@@ -313,14 +316,22 @@ function normalizeCard(a) {
 }
 function load() {
   try {
-    const raw = localStorage.getItem(KEY);
+    let raw = localStorage.getItem(KEY), migrated = false;
+    if (!raw) { raw = localStorage.getItem(OLD_KEY); migrated = !!raw; }
     if (!raw) return null;
     const s = JSON.parse(raw);
-    if (!s || s.v !== 2 || !Array.isArray(s.cards)) return null;
+    if (!s || (s.v !== 2 && s.v !== 3) || !Array.isArray(s.cards)) return null;
     const f = fresh();
-    return { ...f, ...s, settings: { ...f.settings, ...(s.settings || {}) }, cards: s.cards.map(normalizeCard),
-             academies: Array.isArray(s.academies) ? s.academies : f.academies, log: Array.isArray(s.log) ? s.log : [],
-             skips: Array.isArray(s.skips) ? s.skips : [], chat: Array.isArray(s.chat) ? s.chat : [] };
+    const arr = (v, d) => (Array.isArray(v) ? v : d);
+    const out = { ...f, ...s, v: 3, settings: { ...f.settings, ...(s.settings || {}) }, cards: s.cards.map(normalizeCard),
+      academies: arr(s.academies, f.academies), log: arr(s.log, []), skips: arr(s.skips, []), chat: arr(s.chat, []),
+      calendars: arr(s.calendars, f.calendars), events: arr(s.events, migrated ? f.events : []), school: s.school && s.school.periods ? s.school : f.school,
+      notif: { ...DEF_NOTIF, ...(s.notif || {}) }, inbox: arr(s.inbox, []), fired: s.fired && typeof s.fired === 'object' ? s.fired : {}, snoozes: arr(s.snoozes, []),
+      cal: { ...f.cal, ...(s.cal || {}) } };
+    for (const c of f.calendars) if (!out.calendars.some(x => x.id === c.id)) out.calendars.push(c);
+    if (out.view === 'week') out.view = 'calendar';
+    if (!Array.isArray(out.settings.schoolEnd) || out.settings.schoolEnd.length !== 5) out.settings.schoolEnd = DEF_SETTINGS.schoolEnd.slice();
+    return out;
   } catch (e) { return null; }
 }
 const state = load() || fresh();
@@ -371,9 +382,15 @@ const PhotoStore = (() => {
 /* ---------- planner: AI splits the work, this code places it ---------- */
 const capFor = date => (isWeekend(date) ? state.settings.weekendCap : state.settings.cap);
 const dayStart = date => (isWeekend(date) ? state.settings.weekendStart : state.settings.schoolEnd[dow(date) - 1]);
+/* time the planner must keep free: academies and the student's own timed events, each with travel */
 function busyFor(date) {
   const st = state.settings, d = dow(date);
-  return state.academies.filter(a => a.days.includes(d) && a.end > a.start).map(a => [a.start - st.travel, a.end + st.travel, a.label]);
+  const out = state.academies.filter(a => a.days.includes(d) && a.end > a.start).map(a => [a.start - st.travel, a.end + st.travel, a.label]);
+  for (const ev of state.events) {
+    if (ev.allDay || ev.start == null || ev.end == null) continue;
+    if (occurrences(ev, date, date).length) out.push([ev.start - (ev.travel || 0), ev.end + (ev.travel || 0), ev.title]);
+  }
+  return out;
 }
 function freeIntervals(date, ignoreNow) {
   let s = dayStart(date);

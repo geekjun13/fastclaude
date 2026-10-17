@@ -20,6 +20,18 @@ function naviLine() {
 }
 
 /* ---------- 오늘 ---------- */
+function todaySchedule() {
+  const t = today();
+  const list = itemsFor(t, t).filter(i => i.kind === 'event' || i.kind === 'academy' || i.kind === 'due').sort(itemSort);
+  const sc = calVisible('school') ? schoolOn(t) : [];
+  const now = nowMin();
+  const next = list.find(i => !i.allDay && i.end > now);
+  return `<section class="sec"><div class="sec-h"><h2><span class="ico hue" style="--h:4">${icon('clock')}</span>오늘 일정</h2>
+      <div class="row">${sc.length ? `<span class="chip">${icon('board')}수업 ${sc.length}교시 · ~${hm(sc[sc.length - 1].end)}</span>` : ''}<button class="btn btn-soft btn-sm" data-act="calOpenDay" data-arg="${t}">하루 보기 ${icon('next')}</button></div></div>
+    ${list.length ? `<div class="group">${list.map(it => agRow(it).replace('class="ag-row', `class="ag-row${next && it.key === next.key ? ' next' : ''}`)).join('')}</div>`
+      : `<div class="cell dash pad small muted">${sc.length ? '오늘은 수업 말고 다른 일정이 없어요.' : '오늘은 일정이 없어요.'} <button class="link" data-act="newEvent">일정 추가</button></div>`}
+  </section>`;
+}
 function taskRow(b) {
   const a = find(b.aid), s = a.steps[b.step];
   return `<div class="gi task${s.done ? ' is-done' : ''}">
@@ -98,7 +110,8 @@ function viewToday() {
     </section>
     ${crunchAlerts(false)}
     <section class="sec"><div class="sec-h"><h2><span class="ico hue" style="--h:44">${icon('sun')}</span>오늘 할 일</h2>${blocks.length ? `<span class="chip">${blocks.length - left}/${blocks.length} 완료</span>` : ''}</div>${todayBody}</section>
-    <section class="sec"><div class="sec-h"><h2><span class="ico hue" style="--h:152">${icon('calendar')}</span>이번 주</h2><button class="btn btn-soft btn-sm" data-act="go" data-arg="week">주간 계획 ${icon('next')}</button></div>${weekDots()}</section>
+    ${todaySchedule()}
+    <section class="sec"><div class="sec-h"><h2><span class="ico hue" style="--h:152">${icon('calendar')}</span>이번 주</h2><button class="btn btn-soft btn-sm" data-act="calWeek">캘린더 ${icon('next')}</button></div>${weekDots()}</section>
     <section class="sec"><div class="sec-h"><h2><span class="ico hue" style="--h:214">${icon('flag')}</span>다가오는 마감</h2><button class="btn btn-soft btn-sm" data-act="go" data-arg="board">보드 전체 ${icon('next')}</button></div>
       ${up.length ? `<div class="hscroll">${up.map(miniCard).join('')}</div>` : `<div class="cell dash empty">${emptyArt()}<b>아직 수행 카드가 없어요</b><button class="btn btn-pri btn-sm" data-act="go" data-arg="capture">${icon('camera')}공지 사진으로 만들기</button></div>`}
     </section>`
@@ -111,7 +124,7 @@ function scard(a) {
   return `<div class="scard cell hue" style="${hueVar(a.subject)}" role="button" tabindex="0" data-act="open" data-arg="${a.id}">
     <div class="scard-top">${tile(a.subject)}<div class="meta"><small>${esc(a.subject)}${a.type ? ' · ' + esc(a.type) : ''}</small><span class="small num faint">${md(a.due)} ${esc(a.dueTime || '')}</span></div>${ddayBadge(a)}</div>
     <div class="scard-title">${esc(a.title)}</div>
-    <div class="row">${a.weight ? `<span class="chip">${esc(a.weight)}</span>` : ''}${a.photoIds.length ? `<span class="chip blue">${icon('image')}원본</span>` : ''}${a.example ? '<span class="chip ex">예시</span>' : ''}</div>
+    <div class="row">${a.weight ? `<span class="chip">반영 ${esc(a.weight)}</span>` : ''}${a.photoIds.length ? `<span class="chip blue">${icon('image')}원본</span>` : ''}${a.example ? '<span class="chip ex">예시</span>' : ''}</div>
     <div class="scard-foot">${ring(pct, a.subject, `진행 ${Math.round(pct * 100)}%`)}<div style="flex:1;min-width:0" class="stack-s">
       <span class="small muted">${a.steps.length ? `단계 ${a.steps.filter(s => s.done).length}/${a.steps.length}` : '단계 나누기 전'} · ${cl ? `체크 ${cl.done}/${cl.total}` : '기준 풀기 전'}</span>
       <span class="bar"><i style="width:${Math.round(pct * 100)}%"></i></span></div></div>
