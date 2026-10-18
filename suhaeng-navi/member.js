@@ -64,26 +64,78 @@ function memberSettingsHtml() {
         <p class="small muted">${esc(t.desc)}</p>
         <div class="row" style="margin-top:6px"><button class="btn btn-pri" data-act="studioOpen">${icon('spark')}요금제 살펴보기</button></div></div>
     </div>
-    ${f.length ? `<div class="feat-grid">${f.map(x => `<div class="feat"><span class="ni-ico hue" style="--h:${TIERS[x.tier].h}">${icon(x.icon)}</span><div><b>${x.name}</b><small>${esc(x.desc)}</small></div></div>`).join('')}</div>` : ''}
+    ${memberStatusHtml()}
+    ${f.length ? `<div class="sec-sub" style="margin-top:6px">내 플랜 기능</div><div class="feat-grid">${f.map(x => `<div class="feat"><span class="ni-ico hue" style="--h:${TIERS[x.tier].h}">${icon(x.icon)}</span><div><b>${x.name}</b><small>${esc(x.desc)}</small></div></div>`).join('')}</div>` : ''}
     <p class="tiny faint">멤버십 기능은 해당 플랜에서만 화면에 나타나요. 언제든 여기서 바꿀 수 있어요.</p>`;
 }
 
-/* ---------- membership studio: configure → review → slide to start → celebrate ---------- */
-let studio = null, studioT = [];
+/* ---------- membership studio: configure → pay (test card) → unlock → celebrate ---------- */
+let studio = null, studioT = [], runRaf = 0, payFillT = null;
 const cyclePrice = (k, c) => (c === 'year' ? TIERS[k].year : TIERS[k].price);
+/* card details live only in memory while the studio is open: never saved, never sent */
+const freshPay = () => ({ num: '', exp: '', cvc: '', name: '', touched: {}, tried: false, flip: false });
+let pay = freshPay();
+const TEST_CARDS = new Set(['4242424242424242', '4000056655665556', '5555555555554444', '2223003122003222', '378282246310005']);
+const BRAND = { visa: 'VISA', master: 'Mastercard', amex: 'AMEX' };
+const cardBrand = n => (/^4/.test(n) ? 'visa' : /^(5[1-5]|2(2[2-9]|[3-6]\d|7[01]|720))/.test(n) ? 'master' : /^3[47]/.test(n) ? 'amex' : '');
+const cardLen = n => (cardBrand(n) === 'amex' ? 15 : 16);
+function luhn(n) { let sum = 0, alt = false; for (let i = n.length - 1; i >= 0; i--) { let d = +n[i]; if (alt) { d *= 2; if (d > 9) d -= 9; } sum += d; alt = !alt; } return sum % 10 === 0; }
+const fmtNum = n => (cardBrand(n) === 'amex' ? [n.slice(0, 4), n.slice(4, 10), n.slice(10, 15)] : [n.slice(0, 4), n.slice(4, 8), n.slice(8, 12), n.slice(12, 16)]).filter(Boolean).join(' ');
+function cardGroups(n) {
+  const g = cardBrand(n) === 'amex' ? [4, 6, 5] : [4, 4, 4, 4];
+  let i = 0;
+  return g.map(k => { let out = ''; for (let j = 0; j < k; j++, i++) out += n[i] || '•'; return `<span>${out}</span>`; }).join('');
+}
+function payCheck() {
+  const p = pay, b = cardBrand(p.num), e = {};
+  if (p.num.length < cardLen(p.num)) e.num = '카드 번호를 끝까지 입력해 주세요';
+  else if (!luhn(p.num)) e.num = '카드 번호를 다시 확인해 주세요';
+  else if (!TEST_CARDS.has(p.num)) e.num = '테스트 결제에서는 테스트 카드 번호만 쓸 수 있어요';
+  const m = /^(\d{2})\/(\d{2})$/.exec(p.exp);
+  if (!m || +m[1] < 1 || +m[1] > 12) e.exp = 'MM/YY로 입력해 주세요';
+  else if (new Date(2000 + +m[2], +m[1], 1) <= new Date()) e.exp = '유효기간이 지난 카드예요';
+  if (p.cvc.length !== (b === 'amex' ? 4 : 3)) e.cvc = `${b === 'amex' ? 4 : 3}자리 숫자`;
+  if (!p.name.trim()) e.name = '카드에 적힌 이름을 입력해 주세요';
+  return { ok: !Object.keys(e).length, e };
+}
+function payInput(k, el) {
+  if (!studio || studio.step !== 'pay') return;
+  const v = el.value;
+  if (k === 'num') { const d = v.replace(/\D/g, ''); pay.num = d.slice(0, cardLen(d)); const f = fmtNum(pay.num); if (el.value !== f) el.value = f; }
+  else if (k === 'exp') { let d = v.replace(/\D/g, '').slice(0, 4); if (d.length === 1 && +d > 1) d = '0' + d; const f = d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d; pay.exp = f; if (el.value !== f) el.value = f; }
+  else if (k === 'cvc') { pay.cvc = v.replace(/\D/g, '').slice(0, 4); if (el.value !== pay.cvc) el.value = pay.cvc; }
+  else if (k === 'name') pay.name = v.slice(0, 26);
+  renderStudio();
+}
+document.addEventListener('focusin', e => { if (studio && e.target.id === 'pay-cvc') { pay.flip = true; renderStudio(); } });
+document.addEventListener('focusout', e => {
+  const k = e.target.dataset && e.target.dataset.pay;
+  if (!k || !studio) return;
+  pay.touched[k] = true; if (k === 'cvc') pay.flip = false;
+  renderStudio();
+});
+
 function studioOpen() {
   const cur = state.plan;
+  pay = freshPay();
   studio = { step: 'build', pick: cur === 'air' ? 'pro' : cur, cycle: state.member.cycle || 'month', finish: effMode(), phase: 0, from: cur };
   document.body.classList.add('studio-open');
   renderStudio(true);
 }
 function studioClose() {
   if (!studio || studio.step === 'run') return;
-  studioT.forEach(clearTimeout); studioT = [];
-  studio = null; applyLook(); document.body.classList.remove('studio-open');
+  studioT.forEach(clearTimeout); studioT = []; clearInterval(payFillT); cancelAnimationFrame(runRaf);
+  studio = null; pay = freshPay(); applyLook(); document.body.classList.remove('studio-open');
   renderStudio();
 }
 function previewMode(m) { const r = document.documentElement; r.dataset.mode = m; const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = MODE_BG[m]; }
+const RUN_UP = [['결제 정보를 확인하는 중', 0], ['멤버십 카드를 발급하는 중', 1500], ['전용 기능 잠금 해제 중', 3000], ['앱 컬러를 입히는 중', 5300], ['마무리하는 중', 6500]];
+const RUN_DOWN = [['플랜을 바꾸는 중', 0], ['기능을 정리하는 중', 1100], ['앱 컬러를 입히는 중', 2200], ['마무리하는 중', 3100]];
+const RUN_RENEW = [['결제 정보를 확인하는 중', 0], ['멤버십 카드를 갱신하는 중', 1500], ['앱 컬러를 입히는 중', 3000], ['마무리하는 중', 4100]];
+const runPlan = () => (!studio.receipt ? { lines: RUN_DOWN, total: 4000 } : RANK[studio.pick] > RANK[studio.from] ? { lines: RUN_UP, total: 7600 } : { lines: RUN_RENEW, total: 5200 });
+const sumRows = st => { const t = TIERS[st.pick], price = cyclePrice(st.pick, st.cycle); return [['플랜', `수행 내비 ${t.name}`], ['결제 주기', st.pick === 'air' ? '—' : st.cycle === 'year' ? '연간 (2개월 무료)' : '월간'], ['앱 컬러', MODES[st.finish].name], ['정가', price ? `${won(price)}${st.cycle === 'year' ? ' / 년' : ' / 월'}` : '무료']]; };
+const slideHtml = (label, h, off, aria) => `<div class="slide${off ? ' off' : ''}" id="slide" style="--h:${h}"><span class="sl-fill" aria-hidden="true"></span><span class="sl-label">${label}</span>
+  <button class="sl-knob" data-act="slideGo" aria-label="${aria}">${icon(off ? 'lock' : 'next')}</button></div>`;
 function studioPanel() {
   const st = studio, cur = state.plan, t = TIERS[st.pick];
   if (st.step === 'build') {
@@ -99,38 +151,67 @@ function studioPanel() {
         <ul class="feat-list">${st.pick === 'air' ? AIR_BASICS.map(([ic, n]) => `<li data-key="b-${n}">${icon(ic)}<span>${n}</span></li>`).join('')
           : feats.map(f => `<li data-key="${f.id}" class="${have.has(f.id) ? '' : 'new'}"><span class="ni-ico hue" style="--h:${TIERS[f.tier].h}">${icon(f.icon)}</span><span><b>${f.name}</b><small>${esc(f.desc)}</small></span>${have.has(f.id) ? '' : '<em>새로</em>'}</li>`).join('')}</ul></div>`;
   }
-  if (st.step === 'review') {
-    const down = RANK[st.pick] < RANK[cur], price = cyclePrice(st.pick, st.cycle);
-    const rows = [['플랜', `수행 내비 ${t.name}`], ['결제 주기', st.pick === 'air' ? '—' : st.cycle === 'year' ? '연간 (2개월 무료)' : '월간'], ['앱 컬러', MODES[st.finish].name], ['정가', price ? `${won(price)}${st.cycle === 'year' ? ' / 년' : ' / 월'}` : '무료'], ['시작일', mdMid(today())]];
+  if (st.step === 'pay') {
+    const p = pay, b = cardBrand(p.num), price = cyclePrice(st.pick, st.cycle), v = payCheck();
+    const err = k => (v.e[k] && (p.touched[k] || p.tried) ? `<small class="pay-err">${v.e[k]}</small>` : '');
+    const okc = k => (!v.e[k] ? ' ok' : '');
+    const fld = (k, label, attrs, val) => `<label class="field pay-f${okc(k)}"><span>${label}</span><input class="input" id="pay-${k}" data-pay="${k}" autocomplete="off" spellcheck="false" ${attrs} value="${esc(val)}">${err(k)}</label>`;
     return `<button class="btn btn-soft btn-sm st-back" data-act="studioBack">${icon('back')}구성 바꾸기</button>
-      <div class="st-sec"><h3>${down ? '플랜 변경 확인' : '주문 요약'}</h3>
-        <div class="sum">${rows.map(([k, v]) => `<div class="sum-r"><span>${k}</span><b>${v}</b></div>`).join('')}
-          <div class="sum-r total"><span>오늘 청구 금액</span><b class="num">0원</b></div></div>
-        <p class="small faint">${down ? `${TIERS[cur].name} 전용 기능은 화면에서 사라지고, 만든 기록은 그대로 남아요.` : '지금은 청구 없이 바로 시작돼요. 언제든 설정 → 요금제에서 바꿀 수 있어요.'}</p></div>
-      <div class="slide" id="slide" style="--h:${t.h}"><span class="sl-fill" aria-hidden="true"></span><span class="sl-label">밀어서 ${down ? `${t.name}로 변경` : `${t.name} 시작하기`}</span>
-        <button class="sl-knob" data-act="slideGo" aria-label="${t.name} ${down ? '변경' : '시작'}">${icon('next')}</button></div>`;
+      <div class="st-sec"><div class="row-sb"><h3>결제 수단</h3><span class="chip blue">${icon('lock')}테스트 결제</span></div>
+        <div class="paycard brand-${b || 'none'}${p.flip ? ' flip' : ''}" id="paycard" aria-hidden="true">
+          <div class="pc-face pc-front"><div class="pc-top"><span class="pc-chip"></span><span class="pc-brand">${BRAND[b] || ''}</span></div>
+            <div class="pc-num num">${cardGroups(p.num)}</div>
+            <div class="pc-low"><span><small>CARD HOLDER</small><b>${esc(p.name.toUpperCase() || '이름')}</b></span><span><small>VALID THRU</small><b class="num">${esc(p.exp || 'MM/YY')}</b></span></div></div>
+          <div class="pc-face pc-back"><i class="pc-stripe"></i><div class="pc-sign"><span></span><b class="num">${p.cvc ? '•'.repeat(p.cvc.length) : 'CVC'}</b></div></div>
+        </div>
+        <div class="pay-form">
+          ${fld('num', '카드 번호', 'inputmode="numeric" placeholder="0000 0000 0000 0000" maxlength="19"', fmtNum(p.num))}
+          <div class="pay-row">${fld('exp', '유효기간', 'inputmode="numeric" placeholder="MM/YY" maxlength="5"', p.exp)}${fld('cvc', 'CVC', 'inputmode="numeric" placeholder="123" maxlength="4"', p.cvc)}</div>
+          ${fld('name', '카드 소유자 이름', 'placeholder="카드에 적힌 이름"', p.name)}
+          <div class="row-sb"><button class="btn btn-line btn-sm" data-act="payFill">${icon('spark')}테스트 카드 채우기</button><span class="tiny faint">테스트 카드 4242 4242 4242 4242</span></div>
+          <p class="tiny faint pay-note">${icon('lock')}테스트 결제라 실제로 청구되지 않아요. 입력한 카드 정보는 저장하거나 보내지 않아요.</p>
+        </div></div>
+      <div class="st-sec"><div class="sum">${sumRows(st).map(([k, x]) => `<div class="sum-r"><span>${k}</span><b>${x}</b></div>`).join('')}
+        <div class="sum-r total"><span>결제 금액 <span class="chip blue">테스트</span></span><b class="num">${won(price)}</b></div></div></div>
+      ${slideHtml(v.ok ? `밀어서 ${won(price)} 결제하기` : '카드 정보를 입력해 주세요', t.h, !v.ok, `${won(price)} 결제`)}`;
+  }
+  if (st.step === 'review') {
+    return `<button class="btn btn-soft btn-sm st-back" data-act="studioBack">${icon('back')}구성 바꾸기</button>
+      <div class="st-sec"><h3>플랜 변경 확인</h3>
+        <div class="sum">${sumRows(st).map(([k, x]) => `<div class="sum-r"><span>${k}</span><b>${x}</b></div>`).join('')}<div class="sum-r total"><span>결제 금액</span><b class="num">0원</b></div></div>
+        <p class="small faint">${TIERS[cur].name} 전용 기능은 화면에서 사라지고, 만든 기록은 그대로 남아요.</p></div>
+      ${slideHtml(`밀어서 ${t.name}로 변경`, t.h, false, `${t.name}로 변경`)}`;
   }
   if (st.step === 'run') {
-    const lines = ['멤버십 카드를 만드는 중', '전용 기능을 여는 중', '앱 컬러를 입히는 중'];
-    return `<div class="st-run"><svg class="run-ring" viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="34" class="bg"/><circle cx="40" cy="40" r="34" class="fg" pathLength="1"/></svg>
-      <ul class="run-lines">${lines.map((l, i) => `<li class="${st.phase > i ? 'done' : st.phase === i ? 'now' : ''}" data-key="l${i}"><i>${icon('check')}</i>${l}</li>`).join('')}</ul></div>`;
+    const { lines } = runPlan(), gained = featsOf(st.pick).filter(f => RANK[f.tier] > RANK[st.from]);
+    const step = gained.length ? Math.floor(2100 / gained.length) : 0;
+    return `<div class="st-run">
+      <div class="run-dial"><svg class="run-ring" viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="34" class="bg"/><circle cx="40" cy="40" r="34" class="fg" pathLength="1"/></svg><b class="num run-pct" id="run-pct" data-keep>0%</b></div>
+      <p class="run-cap" data-swap="${st.phase}">${lines[Math.min(st.phase, lines.length - 1)][0]}</p>
+      <ul class="run-lines">${lines.map(([l], i) => `<li class="${st.phase > i ? 'rl-done' : st.phase === i ? 'rl-cur' : ''}" data-key="l${i}"><i>${icon('check')}</i><span>${l}</span></li>`).join('')}</ul>
+      ${gained.length ? `<div class="unlock"><div class="ul-h"><b>${icon('lock')}잠금 해제</b><span class="num" id="ul-count" data-keep>0 / ${gained.length}</span></div>
+        <div class="ul-grid" style="--ustep:${step}ms">${gained.map((f, i) => `<span class="ul-i hue" style="--h:${TIERS[f.tier].h};--i:${i}" title="${esc(f.name)}">${icon(f.icon)}<em>${icon('lock')}</em></span>`).join('')}</div></div>` : ''}
+    </div>`;
   }
-  const gained = featsOf(st.pick).filter(f => RANK[f.tier] > RANK[st.from]);
+  const gained = featsOf(st.pick).filter(f => RANK[f.tier] > RANK[st.from]), rc = st.receipt;
   return `<div class="st-done"><span class="eyebrow">${st.pick === 'air' ? '변경 완료' : 'WELCOME'}</span>
       <h2>${st.pick === 'air' ? 'Air로 바꿨어요' : `환영해요, ${esc(memberName())}님!`}</h2>
       <p class="muted">${st.pick === 'air' ? '기본 기능은 그대로 쓸 수 있어요.' : `수행 내비 ${t.name} 멤버가 됐어요.${gained.length ? ` 새로 열린 기능 ${gained.length}개를 바로 써 보세요.` : ''}`}</p>
+      ${rc ? `<div class="receipt"><div class="rc-h"><b>결제 영수증</b><span class="chip blue">테스트</span></div>
+        ${[['상품', `수행 내비 ${t.name} · ${rc.cycle === 'year' ? '연간' : '월간'}`], ['결제 금액', won(rc.amount)], ['결제 수단', `${BRAND[rc.brand] || '카드'} •••• ${rc.last4}`], ['거래 번호', rc.id], ['일시', `${mdMid(ymd(new Date(rc.at)))} ${hm(new Date(rc.at).getHours() * 60 + new Date(rc.at).getMinutes())}`]].map(([k, x]) => `<div class="sum-r"><span>${k}</span><b class="${k === '거래 번호' ? 'num' : ''}">${x}</b></div>`).join('')}</div>` : ''}
       ${gained.length ? `<ul class="feat-list done-list">${gained.map((f, i) => `<li style="--i:${i}"><span class="ni-ico hue" style="--h:${TIERS[f.tier].h}">${icon(f.icon)}</span><span><b>${f.name}</b><small>${esc(f.desc)}</small></span></li>`).join('')}</ul>` : ''}</div>`;
 }
 function studioHtml() {
   const st = studio, t = TIERS[st.pick], price = cyclePrice(st.pick, st.cycle), cur = state.plan;
-  const sameAll = st.pick === cur && st.finish === effMode();
-  const next = st.pick === cur ? (st.finish === effMode() ? '' : 'finish') : 'review';
+  const cycleChange = st.pick === cur && cur !== 'air' && st.cycle !== state.member.cycle;
+  const sameAll = st.pick === cur && st.finish === effMode() && !cycleChange;
+  const next = st.pick !== cur || cycleChange ? 'next' : st.finish === effMode() ? '' : 'finish';
   return `<div class="studio" data-step="${st.step}" style="--h:${t.h}">
     <div class="st-bg" aria-hidden="true"><i></i><i></i></div>
     <header class="st-top"><span class="st-brand">${logoMark(26)}<b>수행 내비 멤버십</b></span>${st.step === 'run' ? '' : `<button class="btn btn-soft btn-icon btn-sm" data-act="studioClose" aria-label="닫기">${icon('x')}</button>`}</header>
     <div class="st-body">
       <section class="st-stage" id="st-stage">
-        <div class="st-float">${mcardHtml(st.pick, st.finish, { id: 'mcard', flip: st.step === 'done' && st.pick !== 'air' })}<div class="mc-shadow" aria-hidden="true"></div></div>
+        <div class="st-float"><span class="st-aura" aria-hidden="true"></span>${mcardHtml(st.pick, st.finish, { id: 'mcard', flip: st.step === 'done' && st.pick !== 'air' })}<div class="mc-shadow" aria-hidden="true"></div></div>
         <div class="st-name"><span class="eyebrow">${t.tag}</span><h2>${t.name}</h2>
           <div class="st-specs"><div><b class="num" id="st-feat" data-keep data-to="${featsOf(st.pick).length}">${featsOf(st.pick).length}</b><small>전용 기능</small></div><div><b>${t.quiz}</b><small>시험지</small></div><div><b class="num">${t.price ? won(t.price) : '0원'}</b><small>월 정가</small></div></div></div>
       </section>
@@ -147,6 +228,7 @@ function renderStudio(fresh) {
   if (!studio) {
     const cur = root.firstElementChild;
     if (!cur) return;
+    root.classList.remove('tilt');
     if (!motionOn()) { root.innerHTML = ''; return; }
     cur.classList.add('closing'); setTimeout(() => { if (!studio) root.innerHTML = ''; }, 420 * mo());
     return;
@@ -159,17 +241,37 @@ function renderStudio(fresh) {
   fxAfterRender(); swapAnim(); swapped.length = 0;
 }
 function studioRun() {
-  const st = studio; if (!st || st.step !== 'review') return;
-  st.step = 'run'; st.phase = 0; renderStudio();
-  const m = motionOn() ? mo() : 0.15, steps = [650, 1300, 1950];
-  steps.forEach((ms, i) => studioT.push(setTimeout(() => { if (studio) { studio.phase = i + 1; renderStudio(); } }, ms * m)));
+  const st = studio; if (!st || (st.step !== 'review' && st.step !== 'pay')) return;
+  if (st.step === 'pay') {
+    if (!payCheck().ok) return;
+    st.receipt = { id: `TX-${Date.now().toString(36).toUpperCase().slice(-8)}`, at: Date.now(), amount: cyclePrice(st.pick, st.cycle), cycle: st.cycle, brand: cardBrand(pay.num), last4: pay.num.slice(-4), plan: st.pick, test: true };
+  }
+  pay = freshPay(); // the card details are dropped as soon as the payment starts
+  const { lines, total } = runPlan(), m = motionOn() ? mo() : 0.12;
+  st.step = 'run'; st.phase = 0; st.runAt = performance.now(); st.runTotal = total * m;
+  document.getElementById('studio-root').style.setProperty('--run', `${(total * m / 1000).toFixed(2)}s`);
+  renderStudio();
+  lines.forEach(([, at], i) => { if (i) studioT.push(setTimeout(() => { if (studio) { studio.phase = i; renderStudio(); } }, at * m)); });
+  const gainedN = featsOf(st.pick).filter(f => RANK[f.tier] > RANK[st.from]).length, ust = gainedN ? 2100 / gainedN : 0;
+  const tick = now => {
+    if (!studio || studio.step !== 'run') return;
+    const k = Math.min(1, (now - st.runAt) / st.runTotal), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    const pe = document.getElementById('run-pct'); if (pe) pe.textContent = `${Math.round(e * 100)}%`;
+    const ce = document.getElementById('ul-count');
+    if (ce) { const tms = (now - st.runAt) / m; ce.textContent = `${clamp(Math.floor((tms - 3000) / ust) + 1, 0, gainedN)} / ${gainedN}`; }
+    if (k < 1) runRaf = requestAnimationFrame(tick);
+  };
+  runRaf = requestAnimationFrame(tick);
   studioT.push(setTimeout(() => {
     if (!studio) return;
+    cancelAnimationFrame(runRaf);
     const up = RANK[st.pick] > RANK[state.plan];
     state.plan = st.pick;
     state.member.cycle = st.cycle;
     if (st.pick === 'air') { state.member.since = null; state.member.no = null; }
     else if (up || !state.member.no) { state.member.since = today(); state.member.no = `SN-${today().slice(0, 4)}-${String(Math.floor(1000 + Math.random() * 9000))}`; }
+    if (st.receipt) { state.member.history = [st.receipt, ...(state.member.history || [])].slice(0, 20); }
+    else state.member.history = [{ id: `TX-${Date.now().toString(36).toUpperCase().slice(-8)}`, at: Date.now(), amount: 0, cycle: st.cycle, plan: st.pick, test: true }, ...(state.member.history || [])].slice(0, 20);
     state.look.mode = st.finish;
     if (!has('themes')) state.look.theme = 'sunrise';
     if (!has('focus')) { state.timer = null; soundStop(); }
@@ -177,28 +279,37 @@ function studioRun() {
     studio.step = 'done'; renderStudio(); render(); renderFocus();
     if (st.pick !== 'air') {
       const c = document.getElementById('mcard'), r = c && c.getBoundingClientRect();
-      studioT.push(setTimeout(() => confetti(r ? r.left + r.width / 2 : innerWidth / 2, r ? r.top + r.height / 2 : innerHeight / 3, 180), 380 * m));
+      studioT.push(setTimeout(() => confetti(r ? r.left + r.width / 2 : innerWidth / 2, r ? r.top + r.height / 2 : innerHeight / 3, 200), 420 * m));
     }
-  }, 2500 * m));
+  }, total * m));
 }
-/* tilt + light on the card follow the pointer */
+/* tilt + light follow the pointer while it is over the stage; the card is flat (crisp text) otherwise */
 document.addEventListener('pointermove', e => {
   if (!studio || e.pointerType === 'touch') return;
-  const stage = document.getElementById('st-stage'), card = document.getElementById('studio-root');
-  if (!stage || !card) return;
+  const stage = document.getElementById('st-stage'), root = document.getElementById('studio-root');
+  if (!stage || !root) return;
   const r = stage.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
-  if (x < 0 || x > 1 || y < 0 || y > 1) return;
-  card.style.setProperty('--ry', ((x - 0.5) * 18).toFixed(2) + 'deg');
-  card.style.setProperty('--rx', ((0.5 - y) * 14).toFixed(2) + 'deg');
-  card.style.setProperty('--mx', (x * 100).toFixed(1) + '%');
-  card.style.setProperty('--my', (y * 100).toFixed(1) + '%');
+  const inside = x >= 0 && x <= 1 && y >= 0 && y <= 1 && studio.step !== 'run' && studio.step !== 'done';
+  root.classList.toggle('tilt', inside);
+  if (!inside) return;
+  root.style.setProperty('--ry', ((x - 0.5) * 16).toFixed(2) + 'deg');
+  root.style.setProperty('--rx', ((0.5 - y) * 12).toFixed(2) + 'deg');
+  root.style.setProperty('--mx', (x * 100).toFixed(1) + '%');
+  root.style.setProperty('--my', (y * 100).toFixed(1) + '%');
 }, { passive: true });
 /* slide to confirm */
 let slideDrag = null;
+function slideBlocked(tr) {
+  pay.tried = true; renderStudio();
+  const t = document.getElementById('slide'); if (t) { t.classList.remove('shake'); void t.offsetWidth; t.classList.add('shake'); }
+  const first = document.querySelector('.pay-f:not(.ok) input'); if (first) first.focus();
+}
 document.addEventListener('pointerdown', e => {
   const k = e.target.closest && e.target.closest('.sl-knob');
-  if (!k || !studio || studio.step !== 'review') return;
-  const tr = k.parentElement, r = tr.getBoundingClientRect();
+  if (!k || !studio || (studio.step !== 'review' && studio.step !== 'pay')) return;
+  const tr = k.parentElement;
+  if (tr.classList.contains('off')) { slideBlocked(tr); return; }
+  const r = tr.getBoundingClientRect();
   slideDrag = { k, tr, x0: e.clientX, max: r.width - k.offsetWidth - 8, moved: false };
   k.setPointerCapture(e.pointerId); tr.classList.add('dragging');
 });
@@ -213,9 +324,42 @@ document.addEventListener('pointerup', () => {
   if (!slideDrag) return;
   const { tr, max } = slideDrag, d = parseFloat(tr.style.getPropertyValue('--x')) || 0, moved = slideDrag.moved;
   slideDrag = null; tr.classList.remove('dragging');
-  if (d > max * 0.82) { tr.style.setProperty('--x', max + 'px'); tr.style.setProperty('--p', 1); tr.classList.add('done'); setTimeout(studioRun, 260); }
+  if (d > max * 0.82) { tr.style.setProperty('--x', max + 'px'); tr.style.setProperty('--p', 1); tr.classList.add('done'); setTimeout(studioRun, 280); }
   else { tr.style.setProperty('--x', '0px'); tr.style.setProperty('--p', 0); if (!moved) { tr.classList.remove('nudge'); void tr.offsetWidth; tr.classList.add('nudge'); } }
 });
+
+/* ---------- membership status: usage charts and payment history (settings) ---------- */
+function memberStatusHtml() {
+  const t0 = today(), m0 = mondayOf(t0), month = t0.slice(0, 7), plan = state.plan;
+  const realSets = state.study.sets.filter(x => !x.example);
+  const monthSets = realSets.filter(x => x.createdAt && ymd(new Date(x.createdAt)).slice(0, 7) === month).length;
+  const week = daysInRange(m0, addDays(m0, 6)).map(d => ({ d, min: state.timerLog.filter(l => l.at === d).reduce((n, l) => n + (l.actual || 0), 0) }));
+  const weekMin = week.reduce((n, x) => n + x.min, 0), maxMin = Math.max(30, ...week.map(x => x.min));
+  const open = featsOf(plan).length, days = state.member.since ? diffDays(state.member.since, t0) + 1 : 0;
+  const uses = [['시험지 · 문제집', realSets.filter(x => x.kind !== 'rewind').length], ['오답 되감기', realSets.filter(x => x.kind === 'rewind').length], ['복습 카드', state.study.cards.length],
+    ['포커스 세션', state.timerLog.length], ['루브릭 셀프 채점', state.cards.filter(a => a.selfcheck && a.selfcheck.result).length], ['예상 질문', state.cards.filter(a => a.expect && a.expect.result && a.expect.result.length).length], ['AI 주간 리포트', Object.keys(state.reports).length]]
+    .sort((a, b) => b[1] - a[1]);
+  const maxUse = Math.max(1, ...uses.map(u => u[1]));
+  const hist = state.member.history || [];
+  const tile = (label, val, unit, extra) => `<div class="cell stat"><span class="lbl">${label}</span><span class="big">${val}<small>${unit}</small></span>${extra || ''}</div>`;
+  return `<div class="sec-sub" style="margin-top:6px">멤버십 현황</div>
+    <div class="grid g4">
+      ${tile('멤버 기간', days || 0, '일째')}
+      ${tile('열린 기능', open, ` / ${FEATURES.length}`, `<span class="meter"><i style="width:${Math.round(open / FEATURES.length * 100)}%"></i></span>`)}
+      ${tile('이번 달 시험지', monthSets, plan === 'air' ? ` / ${AIR_QUIZ_LIMIT}` : '개', plan === 'air' ? `<span class="meter"><i style="width:${Math.min(100, Math.round(state.usage.quiz / AIR_QUIZ_LIMIT * 100))}%"></i></span>` : '')}
+      ${tile('이번 주 집중', weekMin, '분')}
+    </div>
+    <div class="grid g2">
+      <div class="cell pad chart-card"><div class="row-sb"><b>이번 주 집중 시간</b><span class="small faint">포커스 타이머 기록 · 분</span></div>
+        <div class="vbars" role="img" aria-label="요일별 집중 시간: ${week.map(x => `${WD[parseYmd(x.d).getDay()]} ${x.min}분`).join(', ')}">${week.map(x => `<div class="vb${x.d === t0 ? ' today' : ''}" title="${md(x.d)} ${x.min}분"><span class="vb-v num">${x.min || ''}</span><span class="vb-bar"><i style="height:${Math.round(x.min / maxMin * 100)}%"></i></span><small>${WD[parseYmd(x.d).getDay()]}</small></div>`).join('')}</div>
+        ${weekMin ? '' : '<p class="small faint">투데이에서 시계 버튼으로 단계를 시작하면 여기에 쌓여요.</p>'}</div>
+      <div class="cell pad chart-card"><div class="row-sb"><b>기능 사용</b><span class="small faint">지금까지 · 횟수</span></div>
+        <div class="hbars">${uses.map(([k, n]) => `<div class="hb" title="${k} ${n}회"><span class="hb-k">${k}</span><span class="hb-bar"><i style="width:${Math.max(n ? 3 : 0, Math.round(n / maxUse * 100))}%"></i></span><span class="hb-v num">${n}</span></div>`).join('')}</div></div>
+    </div>
+    <div class="cell pad"><div class="row-sb"><b>결제 내역</b>${hist.length ? '<span class="chip blue">테스트 결제</span>' : ''}</div>
+      ${hist.length ? `<div class="hist">${hist.map(h => `<div class="hist-r"><span class="ni-ico hue" style="--h:${TIERS[h.plan] ? TIERS[h.plan].h : 44}">${icon(h.amount ? 'check' : 'route')}</span><div style="flex:1;min-width:0"><b>수행 내비 ${TIERS[h.plan] ? TIERS[h.plan].name : ''}${h.amount ? ` · ${h.cycle === 'year' ? '연간' : '월간'}` : ' 변경'}</b><small>${mdMid(ymd(new Date(h.at)))} · ${h.last4 ? `${BRAND[h.brand] || '카드'} •••• ${h.last4} · ` : ''}${h.id}</small></div><b class="num">${won(h.amount)}</b></div>`).join('')}</div>`
+        : '<p class="small faint">아직 결제 내역이 없어요.</p>'}</div>`;
+}
 
 /* ---------- focus timer + soundscapes ---------- */
 let snd = null, focusTick = null;
@@ -375,11 +519,30 @@ const MEM_H = {
   studioCycle(c) { if (studio) { studio.cycle = c === 'year' ? 'year' : 'month'; renderStudio(); } },
   studioFinish(m) { if (studio && MODES[m]) { studio.finish = m; previewMode(m); renderStudio(); } },
   studioFinishOnly() { if (!studio) return; state.look.mode = studio.finish; save(); applyLook(); render(); studioClose(); toast(`${MODES[state.look.mode].name} 컬러를 입혔어요`); },
-  studioNext() { if (studio) { studio.step = 'review'; renderStudio(); } },
-  studioBack() { if (studio) { studio.step = 'build'; renderStudio(); } },
+  studioNext() { if (studio) { studio.step = RANK[studio.pick] < RANK[state.plan] || studio.pick === 'air' ? 'review' : 'pay'; renderStudio(); } },
+  payFill() {
+    if (!studio || studio.step !== 'pay') return;
+    clearInterval(payFillT);
+    const yy = String((new Date().getFullYear() + 3) % 100).padStart(2, '0');
+    const name = /^[A-Za-z ]+$/.test(state.settings.name || '') ? state.settings.name : 'JIMIN KIM';
+    const seq = [...[...'4242424242424242'].map(c => ['num', c]), ...[...`12${yy}`].map(c => ['exp', c]), ...[...'123'].map(c => ['cvc', c]), ...[...name].map(c => ['name', c])];
+    Object.assign(pay, { num: '', exp: '', cvc: '', name: '', touched: {}, tried: false });
+    let i = 0;
+    const stepFn = () => {
+      if (!studio || studio.step !== 'pay' || i >= seq.length) { clearInterval(payFillT); pay.flip = false; if (studio) renderStudio(); return; }
+      const [k, c] = seq[i++];
+      if (k === 'exp') { const d = pay.exp.replace('/', '') + c; pay.exp = d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d; }
+      else pay[k] += c;
+      pay.flip = k === 'cvc';
+      renderStudio();
+    };
+    if (motionOn()) payFillT = setInterval(stepFn, 34); else { while (i < seq.length) stepFn(); stepFn(); }
+  },
+  studioBack() { if (studio) { clearInterval(payFillT); studio.step = 'build'; renderStudio(); } },
   slideGo(arg, el, e) {
     const tr = document.getElementById('slide'); if (!tr) return;
-    if (e && e.detail === 0) { tr.style.setProperty('--x', (tr.offsetWidth - el.offsetWidth - 8) + 'px'); tr.style.setProperty('--p', 1); tr.classList.add('done'); setTimeout(studioRun, 260); }
+    if (tr.classList.contains('off')) { slideBlocked(tr); return; }
+    if (e && e.detail === 0) { tr.style.setProperty('--x', (tr.offsetWidth - el.offsetWidth - 8) + 'px'); tr.style.setProperty('--p', 1); tr.classList.add('done'); setTimeout(studioRun, 280); }
   },
   studioDone() { const st = studio; studioClose(); if (st) toast(st.pick === 'air' ? 'Air로 바꿨어요' : `수행 내비 ${TIERS[st.pick].name}를 시작했어요`); },
   planApply(k) {

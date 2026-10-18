@@ -470,7 +470,7 @@ function fresh() {
            boardFilter: 'open', boardSubject: '', cal: { view: 'week', date: today(), q: '' }, rail: false,
            look: { ...DEF_LOOK }, plan: 'air', usage: { month: today().slice(0, 7), quiz: 0 },
            study: { sets: [], cards: [], maps: [] }, studyTab: 'make', timerLog: [], timer: null, pace: true,
-           seasons: { active: 'term' }, reports: {}, member: { cycle: 'month', since: null, no: null } };
+           seasons: { active: 'term' }, reports: {}, member: { cycle: 'month', since: null, no: null, history: [] } };
 }
 const DEF_LOOK = { mode: 'auto', style: 'liquid', glass: 70, blur: 24, round: 60, motion: 'smooth', ambient: true, theme: 'sunrise' };
 function normalizeCard(a) {

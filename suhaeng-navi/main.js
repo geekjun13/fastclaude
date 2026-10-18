@@ -394,6 +394,7 @@ document.addEventListener('input', e => {
   const el = e.target, d = el.dataset || {};
   if (d.bind === 'capText') { cap.text = el.value; errors.read = null; }
   else if (d.bind === 'chatDraft') chatDraft = el.value;
+  else if (d.pay) payInput(d.pay, el);
   else if (d.bind === 'importText') { importText = el.value; if (sheet && sheet.err) { sheet.err = null; } }
   else if (d.bind === 'quick') { quickText = el.value; const p = document.getElementById('q-prev'); if (p) p.innerHTML = calQuickPreview(); }
   else if (d.bind === 'calQ') { state.cal.q = el.value; render(); }
